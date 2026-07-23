@@ -6,5 +6,7 @@ cloudscraper>=1.2.71
 beautifulsoup4>=4.12
 requests>=2.31
 sse-starlette>=2.1
+# Pin below Starlette 1.0: 1.x TestClient warns unless httpx2 is installed (keeps test output pristine)
+starlette>=0.49.1,<1.0
 pytest>=8.0
 httpx>=0.27
