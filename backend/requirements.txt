@@ -1,0 +1,10 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+pydantic-settings>=2.2
+cloudscraper>=1.2.71
+beautifulsoup4>=4.12
+requests>=2.31
+sse-starlette>=2.1
+pytest>=8.0
+httpx>=0.27
