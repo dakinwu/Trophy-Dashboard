@@ -1,7 +1,7 @@
 # Trophy Hunter Dashboard — 現代化重寫 + 資料整合 設計文件
 
 - **日期**：2026-07-23
-- **狀態**：待使用者確認 (Draft)
+- **狀態**：已確認 (Approved) — 2026-07-23
 - **作者**：使用者 + Claude
 
 ---
@@ -270,7 +270,8 @@ frontend/
 
 - 這是一次全面重寫；Streamlit UI（[app.py](../../../app.py)、[components/visualizations.py](../../../components/visualizations.py)、[components/utils.py](../../../components/utils.py)）將**退場**。
 - 可重用的 Python 邏輯（[core/scraper.py](../../../core/scraper.py) 的解析、[core/cache.py](../../../core/cache.py)）搬進 `backend/app/`。
-- 建議在過渡期把舊 app 移到 `legacy/` 或依賴 git 歷史保留；README 更新為新的前後端啟動方式。（**待確認**：是否保留 `legacy/` 目錄。）
+- **不保留 `legacy/` 目錄**（使用者決定）：舊的 Streamlit 檔案在重寫完成後**直接移除**，舊版本靠 git 歷史（`main` 分支與過往 commit）保存即可。
+- README 更新為新的前後端啟動方式。
 
 ---
 
@@ -295,12 +296,12 @@ frontend/
 3. **爬蟲脆弱性 / ToS / 速率**：Metacritic、Exophase、攻略頁皆為爬蟲，需節制與快取；尊重各站條款。
 4. **NPSSO 會過期**（約兩個月）→ 提供清楚的重設說明與過期時的友善提示。
 
-**待使用者確認的預設**
+**已確認的決策（2026-07-23）**
 
-- (a) 進度機制用 SSE（而非 WebSocket / 輪詢）。
-- (b) 舊 Streamlit app 是否保留於 `legacy/` 目錄。
-- (c) 「本人檔案」如何認定：以 `/api/me` 回傳的 token 擁有者 online id，與搜尋的 username 相符即視為本人（大小寫不敏感）。
-- (d) Games 頁的外部連結，對比對不到精準條目者，退而提供「該站搜尋結果」連結是否可接受。
+- (a) ✅ 進度機制用 SSE（而非 WebSocket / 輪詢）。
+- (b) ✅ **不保留** `legacy/` 目錄；舊 app 於重寫完成後移除，靠 git 歷史保存。
+- (c) ✅ 「本人檔案」認定：以 `/api/me` 回傳的 token 擁有者 online id，與搜尋的 username 相符（大小寫不敏感）即視為本人，於該檔案疊加真實遊玩時數；查詢他人時僅顯示公開／估計資料。
+- (d) ✅ Games 頁外部連結：對比對不到精準條目的遊戲，退而提供「該站搜尋結果」連結。
 
 ---
 
