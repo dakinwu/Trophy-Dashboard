@@ -1,7 +1,12 @@
 import logging
+import math
+import random
+import time
+from typing import Callable
+
 from bs4 import BeautifulSoup
 
-from app.models import ProfileSummary, TrophyCounts, Trophy
+from app.models import ProfileData, ProfileSummary, TrophyCounts, Trophy
 
 logger = logging.getLogger(__name__)
 
@@ -90,3 +95,64 @@ def parse_trophy_log_page(html_content: str) -> list[Trophy]:
             continue
 
     return trophies
+
+
+PSN_BASE = "https://psnprofiles.com"
+
+
+def fetch_summary(session, base_url: str) -> ProfileSummary | None:
+    rs = session.get(base_url, timeout=15)
+    rs.raise_for_status()
+    return parse_profile_summary(rs.text)
+
+
+def fetch_trophy_log(
+    session,
+    base_url: str,
+    on_progress: Callable[[int], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
+) -> list[Trophy]:
+    all_trophies: list[Trophy] = []
+    page = 1
+    session.headers.update({"Referer": base_url})
+
+    while should_stop is None or not should_stop():
+        rs = session.get(f"{base_url}/log?page={page}", timeout=15)
+        if rs.status_code == 404:
+            break
+        rs.raise_for_status()
+
+        trophies = parse_trophy_log_page(rs.text)
+        if not trophies:
+            break
+
+        all_trophies.extend(trophies)
+        if on_progress:
+            on_progress(page)
+        page += 1
+        time.sleep(random.uniform(1.0, 2.5))
+
+    return all_trophies
+
+
+def scrape_profile(
+    session,
+    username: str,
+    on_progress: Callable[[int, int], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
+) -> ProfileData | None:
+    base_url = f"{PSN_BASE}/{username}"
+    summary = fetch_summary(session, base_url)
+    if summary is None or summary.total_trophies.total == 0:
+        return None
+
+    total_pages = max(1, math.ceil(summary.total_trophies.total / 50))
+
+    def _page_progress(page: int) -> None:
+        if on_progress:
+            on_progress(page, total_pages)
+
+    log = fetch_trophy_log(
+        session, base_url, on_progress=_page_progress, should_stop=should_stop
+    )
+    return ProfileData(profile_summary=summary, trophy_log=log)
