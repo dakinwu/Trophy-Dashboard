@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 
 import requests
 from fastapi import APIRouter, HTTPException, Query
@@ -29,10 +30,16 @@ async def stream_profile(username: str):
     def on_progress(page: int, total: int) -> None:
         loop.call_soon_threadsafe(queue.put_nowait, {"type": "progress", "page": page, "total": total})
 
+    stop_event = threading.Event()
+
     async def run() -> None:
         try:
             data = await asyncio.to_thread(
-                get_profile, username, force=True, on_progress=on_progress
+                get_profile,
+                username,
+                force=True,
+                on_progress=on_progress,
+                should_stop=stop_event.is_set,
             )
             loop.call_soon_threadsafe(
                 queue.put_nowait, {"type": "done", "found": data is not None}
@@ -50,6 +57,7 @@ async def stream_profile(username: str):
                 if kind in ("done", "error"):
                     break
         finally:
+            stop_event.set()
             await task
 
     return EventSourceResponse(event_gen())
