@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from pathlib import Path
 
@@ -12,7 +13,7 @@ class FileCache:
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def _path(self, key: str) -> Path:
-        safe = key.replace("/", "__")
+        safe = re.sub(r"[/\\]", "__", key)
         return self.base_dir / f"{safe}.json"
 
     def load(self, key: str, ttl_seconds: float) -> dict | None:
@@ -23,7 +24,7 @@ class FileCache:
             return None
         try:
             return json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+        except (ValueError, OSError):
             return None
 
     def save(self, key: str, data: dict) -> None:

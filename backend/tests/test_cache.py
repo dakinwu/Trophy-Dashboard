@@ -29,3 +29,18 @@ def test_key_with_slash_is_namespaced(tmp_path):
     cache = FileCache(tmp_path)
     cache.save("enrichment/hltb/god-of-war", {"main": 20})
     assert cache.load("enrichment/hltb/god-of-war", ttl_seconds=1000) == {"main": 20}
+
+
+def test_load_returns_none_on_corrupt_non_utf8(tmp_path):
+    cache = FileCache(tmp_path)
+    path = cache._path("k")
+    path.write_bytes(b"\xff\xfe\x00 not utf8")
+    assert cache.load("k", ttl_seconds=1000) is None
+
+
+def test_key_with_backslash_is_namespaced(tmp_path):
+    cache = FileCache(tmp_path)
+    key = "profile\\..\\..\\escaped"
+    assert cache.base_dir.resolve() in cache._path(key).resolve().parents
+    cache.save(key, {"x": 1})
+    assert cache.load(key, ttl_seconds=1000) == {"x": 1}
