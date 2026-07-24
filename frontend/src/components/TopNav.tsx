@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, NavLink, useMatch, useNavigate } from 'react-router-dom'
+import { useRefreshProfile } from '../lib/queries'
 
 const NAV_ITEMS = [
   { label: 'Overview', subpath: '' },
@@ -19,6 +20,7 @@ export function TopNav() {
   const username = match?.params.username
   const navigate = useNavigate()
   const [query, setQuery] = useState(username ?? '')
+  const { refresh, refreshing } = useRefreshProfile(username)
 
   useEffect(() => {
     setQuery(username ?? '')
@@ -87,6 +89,18 @@ export function TopNav() {
             )
           })}
         </nav>
+
+        {username && (
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={refreshing}
+            title="Re-fetch the latest trophies from PSN (bypass the cache)"
+            className="shrink-0 rounded-md border border-border px-3 py-1.5 text-sm text-muted transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {refreshing ? 'Refreshing…' : '🔄 Refresh'}
+          </button>
+        )}
       </div>
     </header>
   )

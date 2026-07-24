@@ -42,9 +42,8 @@ up without prior chat context. See also `docs/superpowers/specs/` (design) and
   platinum time / difficulty), and Metacritic/Exophase (same technique).
 
 ### 2. Smaller enhancements
-- **Refresh button** in the UI (force `?refresh=true`) — loads currently serve the
-  24h cache with no manual refresh (the auto force-refetch was removed because it
-  poisoned the cache).
+- ~~Refresh button~~ — DONE: a manual "🔄 Refresh" button in the top nav force-refetches
+  (`?refresh=true`, bypassing the 24h cache); per-title cache means only changed games re-fetch.
 - **Fuzzy game-name match** for playtime — some titles don't show playtime because
   the `trophy_titles` name != `title_stats` name (e.g. Tunic). Normalize/fuzzy-match.
 - **Cache `title_stats`** (short TTL) so cached rebuilds drop from ~30s to ~5s
