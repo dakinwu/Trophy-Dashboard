@@ -1,31 +1,16 @@
-import { useEffect, useState } from 'react'
-import { subscribeToProfileStream, type StreamProgressEvent } from '../lib/api'
 import { Spinner } from './Spinner'
 
 /**
- * Loading indicator shown while the profile query is in flight. Subscribes to
- * the SSE progress stream purely for a nicer message; the actual data comes
- * from the GET /api/profile/{username} request driven by react-query.
+ * Loading indicator shown while the profile query is in flight. The data comes
+ * from the cached `GET /api/profile/{username}` request (react-query); we no
+ * longer open the SSE stream here, which used to force a fresh re-fetch on
+ * every load.
  */
 export function LoadingProgress({ username }: { username: string }) {
-  const [progress, setProgress] = useState<StreamProgressEvent | null>(null)
-
-  useEffect(() => {
-    setProgress(null)
-    const unsubscribe = subscribeToProfileStream(username, {
-      onProgress: setProgress,
-    })
-    return unsubscribe
-  }, [username])
-
   return (
     <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-surface p-10 text-center">
       <Spinner />
-      <p className="text-sm text-muted">
-        {progress
-          ? `Fetching trophy page ${progress.page} of ${progress.total}…`
-          : `Fetching ${username}'s trophies…`}
-      </p>
+      <p className="text-sm text-muted">Fetching {username}'s trophies…</p>
     </div>
   )
 }

@@ -37,7 +37,7 @@ async def stream_profile(username: str):
             data = await asyncio.to_thread(
                 get_profile,
                 username,
-                force=True,
+                force=False,
                 on_progress=on_progress,
                 should_stop=stop_event.is_set,
             )

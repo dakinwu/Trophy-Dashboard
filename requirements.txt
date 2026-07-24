@@ -1,9 +1,0 @@
-bs4==0.0.2
-cloudscraper==1.2.71
-numpy==2.2.6
-pandas==2.3.1
-plotly==6.2.0
-scikit-learn==1.7.1
-setuptools==59.6.0
-streamlit==1.47.0
-

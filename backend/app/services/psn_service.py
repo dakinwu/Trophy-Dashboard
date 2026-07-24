@@ -49,6 +49,30 @@ def _format_playtime(total_seconds: float) -> str:
     return f"{int(total_seconds // 3600):,}h"
 
 
+def _fetch_title_trophies(me, title):
+    """Fetch a title's trophies with earned progress. Cross-gen / PC titles list
+    multiple platforms (e.g. {PS5, PSPC}); try each — real consoles before the
+    PS-PC platform, which has no trophy data — and use the 'all' group so DLC is
+    included. Returns a list, or None if no platform returns trophies."""
+    platforms = sorted(
+        title.title_platform,
+        key=lambda p: 1 if str(getattr(p, "value", p)) == "PSPC" else 0,
+    )
+    for platform in platforms:
+        try:
+            return list(
+                me.trophies(
+                    np_communication_id=title.np_communication_id,
+                    platform=platform,
+                    include_progress=True,
+                    trophy_group_id="all",
+                )
+            )
+        except Exception:
+            continue
+    return None
+
+
 def build_profile_from_psn(
     npsso: str | None = None,
     *,
@@ -108,13 +132,14 @@ def build_profile_from_psn(
     for idx, title in enumerate(titles):
         if should_stop is not None and should_stop():
             break
-        try:
-            platform = next(iter(title.title_platform))
-            trophies = me.trophies(
-                np_communication_id=title.np_communication_id,
-                platform=platform,
-                include_progress=True,
+        trophies = _fetch_title_trophies(me, title)
+        if trophies is None:
+            errors += 1
+            logger.warning(
+                "Skipping title %r: no platform returned trophies",
+                getattr(title, "title_name", "?"),
             )
+        else:
             for tr in trophies:
                 if not getattr(tr, "earned", False):
                     continue
@@ -134,9 +159,6 @@ def build_profile_from_psn(
                         grade=grade,
                     )
                 )
-        except Exception as e:
-            errors += 1
-            logger.warning("Skipping title %r: %s", getattr(title, "title_name", "?"), e)
         if on_progress is not None:
             on_progress(idx + 1, total_titles)
 
