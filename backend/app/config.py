@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     )
 
     psn_npsso: str | None = None
-    cache_dir: str = "data_cache"
+    # Absolute so the cache location doesn't depend on the process's CWD.
+    cache_dir: str = str(_REPO_ROOT / "backend" / "data_cache")
     cors_origins: list[str] = ["http://localhost:5173"]
     scrape_user_agent: str = "TrophyHunter/2.0 (local; hello@example.com)"
 
