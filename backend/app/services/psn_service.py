@@ -10,6 +10,7 @@ PSNProfiles "6th Jul 2024 ..." format).
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import Callable
 
@@ -73,9 +74,57 @@ def _fetch_title_trophies(me, title):
     return None
 
 
+# A title's earned trophies only change when you play it, so cache them keyed by
+# (np_communication_id, last_updated). On rebuild, an untouched game is a cache
+# hit and costs zero API calls — only recently-played titles are re-fetched.
+_TITLE_TROPHY_TTL = 30 * 24 * 3600
+
+
+def _title_cache_key(title) -> str:
+    lu = getattr(title, "last_updated_datetime", None)
+    stamp = lu.isoformat() if lu is not None else "?"
+    digest = hashlib.md5(f"{title.np_communication_id}:{stamp}".encode()).hexdigest()
+    return f"psn_title/{digest}"
+
+
+def _earned_trophies_for_title(me, title, cache) -> list[dict] | None:
+    """Earned-trophy dicts for one title, cached per (title, last_updated).
+    Returns None if the title's trophies couldn't be fetched at all."""
+    key = _title_cache_key(title) if cache is not None else None
+    if key is not None:
+        cached = cache.load(key, _TITLE_TROPHY_TTL)
+        if cached is not None:
+            return cached.get("trophies", [])
+
+    trophies = _fetch_title_trophies(me, title)
+    if trophies is None:
+        return None
+
+    earned: list[dict] = []
+    for tr in trophies:
+        if not getattr(tr, "earned", False):
+            continue
+        earned_dt = getattr(tr, "earned_date_time", None)
+        rate = getattr(tr, "trophy_earn_rate", None)
+        earned.append(
+            {
+                "game": title.title_name,
+                "icon_url": getattr(tr, "trophy_icon_url", "") or "",
+                "title": getattr(tr, "trophy_name", "") or "",
+                "timestamp": earned_dt.isoformat() if earned_dt else "",
+                "rarity_percent": f"{rate}%" if rate is not None else "N/A",
+                "grade": _grade_name(getattr(tr, "trophy_type", "")),
+            }
+        )
+    if key is not None:
+        cache.save(key, {"trophies": earned})
+    return earned
+
+
 def build_profile_from_psn(
     npsso: str | None = None,
     *,
+    cache=None,
     on_progress: Callable[[int, int], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
     max_titles: int | None = None,
@@ -132,33 +181,19 @@ def build_profile_from_psn(
     for idx, title in enumerate(titles):
         if should_stop is not None and should_stop():
             break
-        trophies = _fetch_title_trophies(me, title)
-        if trophies is None:
+        earned = _earned_trophies_for_title(me, title, cache)
+        if earned is None:
             errors += 1
             logger.warning(
                 "Skipping title %r: no platform returned trophies",
                 getattr(title, "title_name", "?"),
             )
         else:
-            for tr in trophies:
-                if not getattr(tr, "earned", False):
-                    continue
-                grade = _grade_name(getattr(tr, "trophy_type", ""))
-                key = grade.lower()
+            for e in earned:
+                key = e["grade"].lower()
                 if key in _GRADE_KEYS:
                     setattr(counts, key, getattr(counts, key) + 1)
-                earned_dt = getattr(tr, "earned_date_time", None)
-                rate = getattr(tr, "trophy_earn_rate", None)
-                log.append(
-                    Trophy(
-                        game=title.title_name,
-                        icon_url=getattr(tr, "trophy_icon_url", "") or "",
-                        title=getattr(tr, "trophy_name", "") or "",
-                        timestamp=earned_dt.isoformat() if earned_dt else "",
-                        rarity_percent=f"{rate}%" if rate is not None else "N/A",
-                        grade=grade,
-                    )
-                )
+                log.append(Trophy(**e))
         if on_progress is not None:
             on_progress(idx + 1, total_titles)
 

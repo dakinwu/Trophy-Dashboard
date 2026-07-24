@@ -41,7 +41,7 @@ def get_profile(
         owner = _token_owner_online_id()
         if owner and owner.lower() == username.lower():
             data = build_profile_from_psn(
-                on_progress=on_progress, should_stop=should_stop
+                cache=cache, on_progress=on_progress, should_stop=should_stop
             )
             if data is not None:
                 cache.save(key, data.model_dump())
