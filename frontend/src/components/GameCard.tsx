@@ -1,5 +1,6 @@
 import type { TrophyGrade } from '../lib/api'
 import type { GameSummary } from '../lib/games'
+import { formatPlaytime } from '../lib/games'
 import { GRADE_COLOR_VAR } from '../lib/trophy'
 import { ExternalLinks } from './ExternalLinks'
 
@@ -49,7 +50,13 @@ export function GameCard({ summary }: { summary: GameSummary }) {
           : 'Unknown'}
       </p>
 
-      {/* External guide/info links (Phase 3A). Playtime, completion % and difficulty land in Phase 3B. */}
+      {summary.playtimeSeconds != null && (
+        <p className="text-xs text-muted">
+          Playtime: <span className="font-medium text-accent">{formatPlaytime(summary.playtimeSeconds)}</span>
+        </p>
+      )}
+
+      {/* External guide/info links (Phase 3A). Completion % and difficulty land in Phase 3B. */}
       <div className="flex flex-col gap-1.5">
         <span className="text-[10px] font-medium uppercase tracking-wide text-muted">Guides &amp; info</span>
         <ExternalLinks game={summary.game} />

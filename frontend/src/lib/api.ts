@@ -38,6 +38,8 @@ export interface Trophy {
 export interface ProfileData {
   profile_summary: ProfileSummary
   trophy_log: Trophy[]
+  /** Game title -> real playtime in seconds (PSN API source only). */
+  game_playtime_seconds?: Record<string, number>
 }
 
 export interface HealthStatus {

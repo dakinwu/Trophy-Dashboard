@@ -103,6 +103,7 @@ def build_profile_from_psn(
 
     counts = TrophyCounts()
     log: list[Trophy] = []
+    errors = 0
 
     for idx, title in enumerate(titles):
         if should_stop is not None and should_stop():
@@ -134,11 +135,23 @@ def build_profile_from_psn(
                     )
                 )
         except Exception as e:
+            errors += 1
             logger.warning("Skipping title %r: %s", getattr(title, "title_name", "?"), e)
         if on_progress is not None:
             on_progress(idx + 1, total_titles)
 
     counts.total = counts.platinum + counts.gold + counts.silver + counts.bronze
+
+    # A real profile with titles always has earned trophies; zero means every
+    # per-title fetch failed (typically PSN rate-limiting). Treat as a failed
+    # fetch and return None so the caller does NOT cache this garbage.
+    if titles and not log:
+        logger.warning(
+            "PSN fetch for %s yielded 0 trophies from %d titles (%d errored); "
+            "treating as throttled/failed, not caching.",
+            online_id, len(titles), errors,
+        )
+        return None
 
     if playtime_seconds:
         stats["Playtime"] = _format_playtime(sum(playtime_seconds.values()))
@@ -152,4 +165,5 @@ def build_profile_from_psn(
             stats=stats,
         ),
         trophy_log=log,
+        game_playtime_seconds={name: int(sec) for name, sec in playtime_seconds.items()},
     )

@@ -8,6 +8,8 @@ export interface GameSummary {
   totalEarned: number
   hasPlatinum: boolean
   lastEarnedDate: Date | null
+  /** Real playtime in seconds (PSN API source), or null if unknown. */
+  playtimeSeconds: number | null
 }
 
 const ICON_GRADE_PRIORITY: Record<TrophyGrade, number> = {
@@ -18,7 +20,10 @@ const ICON_GRADE_PRIORITY: Record<TrophyGrade, number> = {
 }
 
 /** Groups the trophy log by game, sorted by total trophies earned (descending). */
-export function groupTrophiesByGame(trophies: Trophy[]): GameSummary[] {
+export function groupTrophiesByGame(
+  trophies: Trophy[],
+  playtimeByGame: Record<string, number> = {},
+): GameSummary[] {
   const byGame = new Map<string, GameSummary>()
   const iconPriority = new Map<string, number>()
 
@@ -32,6 +37,7 @@ export function groupTrophiesByGame(trophies: Trophy[]): GameSummary[] {
         totalEarned: 0,
         hasPlatinum: false,
         lastEarnedDate: null,
+        playtimeSeconds: playtimeByGame[trophy.game] ?? null,
       }
       byGame.set(trophy.game, summary)
       iconPriority.set(trophy.game, ICON_GRADE_PRIORITY[trophy.grade])
@@ -95,4 +101,11 @@ export function getTopGamesByTrophies(summaries: GameSummary[], count = 8): TopG
     .sort((a, b) => b.totalEarned - a.totalEarned)
     .slice(0, count)
     .map((summary) => ({ game: summary.game, total: summary.totalEarned }))
+}
+
+/** Formats a playtime in seconds as a compact string, e.g. "241h" or "45m". */
+export function formatPlaytime(seconds: number): string {
+  if (seconds >= 3600) return `${Math.round(seconds / 3600).toLocaleString()}h`
+  if (seconds >= 60) return `${Math.round(seconds / 60)}m`
+  return `${Math.round(seconds)}s`
 }

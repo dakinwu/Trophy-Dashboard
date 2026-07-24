@@ -28,3 +28,5 @@ class Trophy(BaseModel):
 class ProfileData(BaseModel):
     profile_summary: ProfileSummary
     trophy_log: list[Trophy] = Field(default_factory=list)
+    # Game title -> real playtime in seconds (PSN API source only; empty otherwise).
+    game_playtime_seconds: dict[str, int] = Field(default_factory=dict)

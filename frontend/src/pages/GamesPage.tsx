@@ -17,13 +17,21 @@ export function GamesPage() {
 
   return (
     <ProfileStateGate username={username} query={profileQuery}>
-      {(data) => <GamesContent trophyLog={data.trophy_log} />}
+      {(data) => (
+        <GamesContent trophyLog={data.trophy_log} playtime={data.game_playtime_seconds} />
+      )}
     </ProfileStateGate>
   )
 }
 
-function GamesContent({ trophyLog }: { trophyLog: Trophy[] }) {
-  const summaries = useMemo(() => groupTrophiesByGame(trophyLog), [trophyLog])
+function GamesContent({
+  trophyLog,
+  playtime,
+}: {
+  trophyLog: Trophy[]
+  playtime?: Record<string, number>
+}) {
+  const summaries = useMemo(() => groupTrophiesByGame(trophyLog, playtime), [trophyLog, playtime])
   const sortedByRecent = useMemo(
     () =>
       [...summaries].sort(

@@ -61,7 +61,7 @@ export function OverviewPage() {
   return (
     <div className="flex flex-col gap-6">
       <HeroHeader summary={profile_summary} />
-      <StatTiles counts={profile_summary.total_trophies} />
+      <StatTiles counts={profile_summary.total_trophies} playtime={profile_summary.stats.Playtime} />
       <div className="grid gap-6 lg:grid-cols-2">
         <PlatinumMosaic trophies={trophy_log} />
         <RarestTrophies trophies={trophy_log} />
