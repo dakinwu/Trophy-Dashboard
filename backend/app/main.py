@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api import meta, profile
+from app.api import enrich, meta, profile
 
 
 def create_app() -> FastAPI:
@@ -16,6 +16,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(meta.router, prefix="/api")
     app.include_router(profile.router, prefix="/api")
+    app.include_router(enrich.router, prefix="/api")
     return app
 
 

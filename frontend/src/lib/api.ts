@@ -92,6 +92,21 @@ export function getProfile(username: string, refresh = false): Promise<ProfileDa
   return requestJson<ProfileData>(url)
 }
 
+export interface HltbTimes {
+  game_name: string
+  main_story: number
+  main_extra: number
+  completionist: number
+}
+
+/** HowLongToBeat completion times for a game; null if not found. */
+export async function getHltb(game: string): Promise<HltbTimes | null> {
+  const res = await fetch(`/api/hltb?game=${encodeURIComponent(game)}`)
+  if (!res.ok) return null
+  const data = (await res.json()) as Partial<HltbTimes>
+  return typeof data?.main_story === 'number' ? (data as HltbTimes) : null
+}
+
 // ---------------------------------------------------------------------------
 // SSE stream: GET /api/profile/{username}/stream
 // ---------------------------------------------------------------------------

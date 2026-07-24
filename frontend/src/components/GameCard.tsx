@@ -2,11 +2,13 @@ import type { TrophyGrade } from '../lib/api'
 import type { GameSummary } from '../lib/games'
 import { formatPlaytime } from '../lib/games'
 import { GRADE_COLOR_VAR } from '../lib/trophy'
+import { useHltb } from '../lib/queries'
 import { ExternalLinks } from './ExternalLinks'
 
 const GRADE_ORDER: TrophyGrade[] = ['Platinum', 'Gold', 'Silver', 'Bronze']
 
 export function GameCard({ summary }: { summary: GameSummary }) {
+  const hltb = useHltb(summary.game)
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4 shadow-md shadow-black/10 transition hover:-translate-y-0.5 hover:shadow-lg">
       <div className="flex items-center gap-3">
@@ -53,6 +55,18 @@ export function GameCard({ summary }: { summary: GameSummary }) {
       {summary.playtimeSeconds != null && (
         <p className="text-xs text-muted">
           Playtime: <span className="font-medium text-accent">{formatPlaytime(summary.playtimeSeconds)}</span>
+        </p>
+      )}
+
+      {hltb.data && hltb.data.main_story > 0 && (
+        <p className="text-xs text-muted">
+          HLTB: <span className="text-text">{Math.round(hltb.data.main_story)}h</span> main
+          {hltb.data.completionist > 0 && (
+            <>
+              {' · '}
+              <span className="text-text">{Math.round(hltb.data.completionist)}h</span> 100%
+            </>
+          )}
         </p>
       )}
 

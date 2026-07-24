@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { ApiError, getProfile, type ProfileData } from './api'
+import { ApiError, getHltb, getProfile, type HltbTimes, type ProfileData } from './api'
 
 /**
  * Fetches a PSN profile + trophy log for `username`.
@@ -12,5 +12,16 @@ export function useProfile(username: string | undefined, refresh = false) {
     enabled: Boolean(username),
     retry: false,
     staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** HowLongToBeat times for a game (long-cached, shared across cards). */
+export function useHltb(game: string | undefined) {
+  return useQuery<HltbTimes | null>({
+    queryKey: ['hltb', game],
+    queryFn: () => getHltb(game as string),
+    enabled: Boolean(game),
+    staleTime: 24 * 60 * 60 * 1000,
+    retry: false,
   })
 }
