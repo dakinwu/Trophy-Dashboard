@@ -1,6 +1,7 @@
 import type { TrophyGrade } from '../lib/api'
 import type { GameSummary } from '../lib/games'
 import { GRADE_COLOR_VAR } from '../lib/trophy'
+import { ExternalLinks } from './ExternalLinks'
 
 const GRADE_ORDER: TrophyGrade[] = ['Platinum', 'Gold', 'Silver', 'Bronze']
 
@@ -48,9 +49,10 @@ export function GameCard({ summary }: { summary: GameSummary }) {
           : 'Unknown'}
       </p>
 
-      {/* Real completion %, playtime, difficulty, and external links land in Phase 3. */}
-      <div className="rounded-lg border border-dashed border-border bg-bg/30 px-2 py-1.5 text-center text-[11px] text-muted opacity-70">
-        Completion %, playtime & links — more coming
+      {/* External guide/info links (Phase 3A). Playtime, completion % and difficulty land in Phase 3B. */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[10px] font-medium uppercase tracking-wide text-muted">Guides &amp; info</span>
+        <ExternalLinks game={summary.game} />
       </div>
     </div>
   )
