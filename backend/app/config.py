@@ -1,8 +1,17 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Read the repo-root .env first (where the PSN NPSSO token lives), then
+    # allow an optional backend/.env to override it. Later files win.
+    model_config = SettingsConfigDict(
+        env_file=(str(_REPO_ROOT / ".env"), str(_REPO_ROOT / "backend" / ".env")),
+        extra="ignore",
+    )
 
     psn_npsso: str | None = None
     cache_dir: str = "data_cache"

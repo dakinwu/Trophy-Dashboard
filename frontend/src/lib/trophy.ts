@@ -53,7 +53,17 @@ const TIMESTAMP_PATTERN =
  * roll over into the next month.
  */
 export function parseTrophyTimestamp(raw: string): Date | null {
-  const withoutOrdinal = raw.trim().replace(/(\d+)(st|nd|rd|th)\b/i, '$1')
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+
+  // ISO-8601 (PSN official-API source), e.g. "2026-07-22T15:21:53+00:00".
+  if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+    const iso = new Date(trimmed)
+    return Number.isNaN(iso.getTime()) ? null : iso
+  }
+
+  // PSNProfiles scraper format, e.g. "6th Jul 2024 10:11:23 pm".
+  const withoutOrdinal = trimmed.replace(/(\d+)(st|nd|rd|th)\b/i, '$1')
   const match = TIMESTAMP_PATTERN.exec(withoutOrdinal)
   if (!match) return null
 
