@@ -23,6 +23,7 @@ export interface ProfileSummary {
 }
 
 export type TrophyGrade = 'Platinum' | 'Gold' | 'Silver' | 'Bronze'
+export type RaritySource = 'psn' | 'psnprofiles' | 'unknown'
 
 export interface Trophy {
   game: string
@@ -32,6 +33,9 @@ export interface Trophy {
   timestamp: string
   /** Raw string, e.g. "2.5%". */
   rarity_percent: string
+  rarity_source?: RaritySource
+  psn_rarity_percent?: string | null
+  psnprofiles_rarity_percent?: string | null
   grade: TrophyGrade
 }
 
@@ -120,6 +124,22 @@ export async function getPsnprofilesGuide(game: string): Promise<PsnprofilesGuid
   if (!res.ok) return null
   const data = (await res.json()) as Partial<PsnprofilesGuide>
   return typeof data?.guide_url === 'string' ? (data as PsnprofilesGuide) : null
+}
+
+export interface PsnprofilesStats {
+  world_rank: number | null
+  country_rank: number | null
+  country_label: string | null
+  completion: string | null
+  profile_url: string
+}
+
+/** On-demand PSNProfiles rankings; null if the profile is unavailable. */
+export async function getPsnprofilesStats(username: string): Promise<PsnprofilesStats | null> {
+  const res = await fetch(`/api/psnprofiles/stats?username=${encodeURIComponent(username)}`)
+  if (!res.ok) return null
+  const data = (await res.json()) as Partial<PsnprofilesStats>
+  return typeof data?.profile_url === 'string' ? (data as PsnprofilesStats) : null
 }
 
 // ---------------------------------------------------------------------------

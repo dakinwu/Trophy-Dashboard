@@ -219,6 +219,10 @@ def _earned_trophies_for_title(me, title, cache) -> list[dict] | None:
                 "title": getattr(tr, "trophy_name", "") or "",
                 "timestamp": earned_dt.isoformat() if earned_dt else "",
                 "rarity_percent": f"{rate}%" if rate is not None else "N/A",
+                "rarity_source": "psn",
+                "psn_rarity_percent": (
+                    f"{rate}%" if rate is not None else None
+                ),
                 "grade": _grade_name(getattr(tr, "trophy_type", "")),
             }
         )

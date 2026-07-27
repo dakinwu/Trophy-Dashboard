@@ -14,8 +14,8 @@ up without prior chat context. See also `docs/superpowers/specs/` (design) and
   secondary source, with current-layout parser fixtures and bounded waits.
   Endpoints: `GET /api/profile/{username}`
   (own id → PSN API, else scrape), `/api/profile/{username}/stream` (SSE),
-  `/api/hltb`, `/api/psnine`, `/api/psnprofiles/guide`, `/api/health`.
-  43 pytest tests, pristine.
+  `/api/hltb`, `/api/psnine`, `/api/psnprofiles/guide`,
+  `/api/psnprofiles/stats`, `/api/health`. 46 pytest tests, pristine.
 - **Frontend** (`frontend/`, Vite + React + TS + Tailwind, "Trophy Gold" theme):
   top-nav pages Overview / Games / Timeline / Milestones / Data. Real playtime
   tile + per-game playtime, per-game external links (PSNProfiles / PSNine / HLTB /
@@ -60,6 +60,9 @@ upgrade the search link to the exact guide URL after a successful lookup.
 - ~~`filterwarnings = error`~~ → already enabled in `backend/pytest.ini`.
 - ~~Frontend bundle split~~ → DONE. Route-level lazy loading reduced the main
   production bundle from about 694 kB to 274 kB and removed Vite's 500 kB warning.
+- ~~Rarity provenance and profile ranks~~ → DONE. Trophy percentages explicitly
+  identify official PSN vs. PSNProfiles data, while Overview loads PSNProfiles
+  world/country rank on demand and caches successful results for 6 hours.
 
 ## Key facts for a fresh session
 - PSN id: **`dakinwu20`**. NPSSO token lives in the **repo-root `.env`** (gitignored;

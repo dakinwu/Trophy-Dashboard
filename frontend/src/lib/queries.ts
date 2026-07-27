@@ -5,9 +5,11 @@ import {
   getHltb,
   getProfile,
   getPsnprofilesGuide,
+  getPsnprofilesStats,
   type HltbTimes,
   type ProfileData,
   type PsnprofilesGuide,
+  type PsnprofilesStats,
 } from './api'
 
 /**
@@ -70,6 +72,17 @@ export function usePsnprofilesGuide(game: string | undefined, enabled: boolean) 
     queryFn: () => getPsnprofilesGuide(game as string),
     enabled: Boolean(game) && enabled,
     staleTime: 24 * 60 * 60 * 1000,
+    retry: false,
+  })
+}
+
+/** PSNProfiles rankings are opt-in because a cache miss opens visible Chrome. */
+export function usePsnprofilesStats(username: string | undefined, enabled: boolean) {
+  return useQuery<PsnprofilesStats | null>({
+    queryKey: ['psnprofiles-stats', username],
+    queryFn: () => getPsnprofilesStats(username as string),
+    enabled: Boolean(username) && enabled,
+    staleTime: 60 * 60 * 1000,
     retry: false,
   })
 }

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -22,6 +24,9 @@ class Trophy(BaseModel):
     title: str
     timestamp: str
     rarity_percent: str
+    rarity_source: Literal["psn", "psnprofiles", "unknown"] = "unknown"
+    psn_rarity_percent: str | None = None
+    psnprofiles_rarity_percent: str | None = None
     grade: str
 
 

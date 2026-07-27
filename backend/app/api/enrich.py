@@ -9,6 +9,7 @@ from app.services.psnine_service import (
     get_psnine_title,
 )
 from app.services.psnprofiles_guide_service import get_psnprofiles_guide
+from app.services.psnprofiles_stats_service import get_psnprofiles_stats
 
 router = APIRouter()
 
@@ -28,6 +29,18 @@ def psnprofiles_guide(game: str = Query(..., min_length=1)):
         raise HTTPException(
             status_code=502,
             detail="Error fetching the PSNProfiles guide.",
+        ) from exc
+
+
+@router.get("/psnprofiles/stats")
+def psnprofiles_stats(username: str = Query(..., min_length=1)):
+    """On-demand PSNProfiles world/country rank for a public profile."""
+    try:
+        return get_psnprofiles_stats(username) or {}
+    except PSNProfilesFetchError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Error fetching PSNProfiles rankings.",
         ) from exc
 
 

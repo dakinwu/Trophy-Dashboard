@@ -59,6 +59,11 @@ visible nodriver-controlled Chrome session.
 - PSNProfiles guide difficulty and platinum-time data is loaded on demand from a
   game card. A cache miss opens the same visible Chrome flow; successful guide
   results and their exact URLs are cached for 90 days.
+- Trophy rarity is source-labelled (`PSN` for the official API, `PSNP` for the
+  value displayed by PSNProfiles) so the two player populations are not mixed.
+- The Overview page can load PSNProfiles world and country rank on demand. These
+  ranks cover public profiles tracked by PSNProfiles, not every PlayStation user,
+  and successful lookups are cached for 6 hours.
 - PSNine links resolve the site's own Simplified Chinese game name on first click,
   cache it, then open `https://www.psnine.com/psngame?title=<簡中名稱>`.
 

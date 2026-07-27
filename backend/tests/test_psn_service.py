@@ -84,5 +84,7 @@ def test_build_profile_caches_title_stats_and_trophies(monkeypatch, tmp_path):
     assert first.profile_summary.stats["Playtime"] == "12h"
     assert first.game_playtime_seconds == {"TUNIC™ (PS5)": 45_000}
     assert first.profile_summary.total_trophies.platinum == 1
+    assert first.trophy_log[0].rarity_source == "psn"
+    assert first.trophy_log[0].psn_rarity_percent == "12.5%"
     assert me.title_stats_calls == 1
     assert me.trophy_calls == 1

@@ -1,6 +1,6 @@
 import type { Trophy, TrophyGrade } from './api'
 import { toCsv } from './csv'
-import { parseTrophyTimestamp, toDateKey } from './trophy'
+import { formatTrophyRarity, parseTrophyTimestamp, toDateKey } from './trophy'
 
 export interface DataRow extends Trophy {
   parsedDate: Date | null
@@ -62,7 +62,7 @@ export function dataRowsToCsv(rows: DataRow[]): string {
     row.title,
     row.parsedDate ? row.parsedDate.toISOString() : row.timestamp,
     row.grade,
-    row.rarity_percent,
+    formatTrophyRarity(row),
   ])
   return toCsv(header, body)
 }
