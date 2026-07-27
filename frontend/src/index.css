@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/*
+ * Trophy Gold theme.
+ * Raw custom properties are the single source of truth for the palette;
+ * the @theme block re-exposes them as Tailwind utilities (bg-bg, text-accent,
+ * border-border, text-platinum, ...).
+ */
+:root {
+  --bg: #15120b;
+  --surface: #221c11;
+  --border: #3f3420;
+  --text: #f7f1e6;
+  --muted: #b3a686;
+  --accent: #f5b301;
+  --accent-bright: #ffcf3f;
+
+  /* Trophy grade colors */
+  --platinum: #5ab6f0;
+  --gold: #ffd700;
+  --silver: #c0c0c0;
+  --bronze: #cd7f32;
+
+  color-scheme: dark;
+}
+
+@theme {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-bright: var(--accent-bright);
+
+  --color-platinum: var(--platinum);
+  --color-gold: var(--gold);
+  --color-silver: var(--silver);
+  --color-bronze: var(--bronze);
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}

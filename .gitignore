@@ -12,6 +12,14 @@ venv/
 ENV/
 *.egg-info/
 
+# Secrets / environment variables (PSN NPSSO token lives here)
+.env
+.env.*
+!.env.example
+
+# Brainstorming visual companion
+.superpowers/
+
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 

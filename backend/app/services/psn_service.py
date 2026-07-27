@@ -1,0 +1,327 @@
+"""PSN official-API data source (via PSNAWP + an NPSSO token).
+
+Produces the same `ProfileData` shape the PSNProfiles scraper produces, but for
+the token owner's OWN account and with NO Cloudflare in the way. Used as the
+primary source for the user's own profile in the hybrid design; PSNProfiles
+scraping remains the best-effort secondary source for other/public profiles.
+
+Timestamps are emitted as ISO-8601 (the frontend parses both ISO and the older
+PSNProfiles "6th Jul 2024 ..." format).
+"""
+from __future__ import annotations
+
+import hashlib
+import logging
+import re
+import unicodedata
+from difflib import SequenceMatcher
+from typing import Callable
+
+from app.config import settings
+from app.models import ProfileData, ProfileSummary, Trophy, TrophyCounts
+
+logger = logging.getLogger(__name__)
+
+_GRADE_NAMES = {"PLATINUM": "Platinum", "GOLD": "Gold", "SILVER": "Silver", "BRONZE": "Bronze"}
+_GRADE_KEYS = ("platinum", "gold", "silver", "bronze")
+_TITLE_STATS_TTL = 6 * 3600
+_ROMAN_NUMERAL = re.compile(r"^(?:x{0,3})(?:ix|iv|v?i{0,3})$")
+
+
+def _grade_name(trophy_type) -> str:
+    raw = getattr(trophy_type, "name", str(trophy_type)).upper()
+    return _GRADE_NAMES.get(raw, raw.title())
+
+
+def _client(npsso: str):
+    from psnawp_api import PSNAWP
+
+    return PSNAWP(npsso).me()
+
+
+def psn_online_id(npsso: str | None = None) -> str | None:
+    """Return the token owner's PSN online id, or None if no/invalid token."""
+    npsso = npsso or settings.psn_npsso
+    if not npsso:
+        return None
+    try:
+        return _client(npsso).online_id
+    except Exception as e:  # invalid/expired token, network, etc.
+        logger.warning("PSN online_id lookup failed: %s", e)
+        return None
+
+
+def _format_playtime(total_seconds: float) -> str:
+    return f"{int(total_seconds // 3600):,}h"
+
+
+def _normalise_game_name(name: str) -> str:
+    name = unicodedata.normalize("NFKC", name).casefold()
+    name = re.sub(r"[™®©]", "", name)
+    name = re.sub(
+        r"\((?:ps[345]|playstation\s*[345]|vita|cross[- ]?buy)\)",
+        " ",
+        name,
+    )
+    name = name.replace("&", " and ")
+    name = re.sub(r"[^\w]+", " ", name, flags=re.UNICODE)
+    return " ".join(name.split())
+
+
+def _number_tokens(name: str) -> set[str]:
+    return {
+        token
+        for token in _normalise_game_name(name).split()
+        if token.isdigit() or _ROMAN_NUMERAL.fullmatch(token)
+    }
+
+
+def _game_name_score(left: str, right: str) -> float:
+    left_normalised = _normalise_game_name(left)
+    right_normalised = _normalise_game_name(right)
+    if not left_normalised or not right_normalised:
+        return 0.0
+    if left_normalised == right_normalised:
+        return 1.0
+
+    left_numbers = _number_tokens(left)
+    right_numbers = _number_tokens(right)
+    if left_numbers and right_numbers and left_numbers != right_numbers:
+        return 0.0
+
+    if min(len(left_normalised), len(right_normalised)) >= 5 and (
+        left_normalised in right_normalised or right_normalised in left_normalised
+    ):
+        return 0.92
+    return SequenceMatcher(None, left_normalised, right_normalised).ratio()
+
+
+def _match_playtime_titles(
+    playtime_by_stats_name: dict[str, int],
+    trophy_title_names: list[str],
+) -> dict[str, int]:
+    """Key title-stats playtime by trophy-list names using conservative fuzzy matching."""
+    matched: dict[str, int] = {}
+    candidates = list(playtime_by_stats_name.items())
+
+    for trophy_title in trophy_title_names:
+        ranked = sorted(
+            (
+                (_game_name_score(trophy_title, stats_title), seconds)
+                for stats_title, seconds in candidates
+            ),
+            reverse=True,
+        )
+        if not ranked:
+            continue
+        best_score, best_seconds = ranked[0]
+        runner_up = ranked[1][0] if len(ranked) > 1 else 0.0
+        if best_score >= 0.78 and (
+            best_score >= 0.99 or best_score - runner_up >= 0.08
+        ):
+            matched[trophy_title] = best_seconds
+
+    return matched
+
+
+def _title_stats_cache_key(online_id: str) -> str:
+    digest = hashlib.sha256(online_id.casefold().encode("utf-8")).hexdigest()
+    return f"psn_title_stats/{digest}"
+
+
+def _playtime_from_title_stats(me, online_id: str, cache) -> dict[str, int]:
+    """Fetch title stats once per short TTL and return name -> seconds."""
+    key = _title_stats_cache_key(online_id)
+    if cache is not None:
+        cached = cache.load(key, _TITLE_STATS_TTL)
+        if cached is not None:
+            return {
+                name: int(seconds)
+                for name, seconds in cached.get("playtime_seconds", {}).items()
+            }
+
+    playtime_seconds: dict[str, int] = {}
+    try:
+        for stat in me.title_stats():
+            duration = getattr(stat, "play_duration", None)
+            name = getattr(stat, "name", None)
+            if duration is not None and name:
+                playtime_seconds[name] = int(duration.total_seconds())
+    except Exception as exc:
+        logger.info("title_stats unavailable: %s", exc)
+        return {}
+
+    if cache is not None:
+        cache.save(key, {"playtime_seconds": playtime_seconds})
+    return playtime_seconds
+
+
+def _fetch_title_trophies(me, title):
+    """Fetch a title's trophies with earned progress. Cross-gen / PC titles list
+    multiple platforms (e.g. {PS5, PSPC}); try each — real consoles before the
+    PS-PC platform, which has no trophy data — and use the 'all' group so DLC is
+    included. Returns a list, or None if no platform returns trophies."""
+    platforms = sorted(
+        title.title_platform,
+        key=lambda p: 1 if str(getattr(p, "value", p)) == "PSPC" else 0,
+    )
+    for platform in platforms:
+        try:
+            return list(
+                me.trophies(
+                    np_communication_id=title.np_communication_id,
+                    platform=platform,
+                    include_progress=True,
+                    trophy_group_id="all",
+                )
+            )
+        except Exception:
+            continue
+    return None
+
+
+# A title's earned trophies only change when you play it, so cache them keyed by
+# (np_communication_id, last_updated). On rebuild, an untouched game is a cache
+# hit and costs zero API calls — only recently-played titles are re-fetched.
+_TITLE_TROPHY_TTL = 30 * 24 * 3600
+
+
+def _title_cache_key(title) -> str:
+    lu = getattr(title, "last_updated_datetime", None)
+    stamp = lu.isoformat() if lu is not None else "?"
+    digest = hashlib.md5(f"{title.np_communication_id}:{stamp}".encode()).hexdigest()
+    return f"psn_title/{digest}"
+
+
+def _earned_trophies_for_title(me, title, cache) -> list[dict] | None:
+    """Earned-trophy dicts for one title, cached per (title, last_updated).
+    Returns None if the title's trophies couldn't be fetched at all."""
+    key = _title_cache_key(title) if cache is not None else None
+    if key is not None:
+        cached = cache.load(key, _TITLE_TROPHY_TTL)
+        if cached is not None:
+            return cached.get("trophies", [])
+
+    trophies = _fetch_title_trophies(me, title)
+    if trophies is None:
+        return None
+
+    earned: list[dict] = []
+    for tr in trophies:
+        if not getattr(tr, "earned", False):
+            continue
+        earned_dt = getattr(tr, "earned_date_time", None)
+        rate = getattr(tr, "trophy_earn_rate", None)
+        earned.append(
+            {
+                "game": title.title_name,
+                "icon_url": getattr(tr, "trophy_icon_url", "") or "",
+                "title": getattr(tr, "trophy_name", "") or "",
+                "timestamp": earned_dt.isoformat() if earned_dt else "",
+                "rarity_percent": f"{rate}%" if rate is not None else "N/A",
+                "grade": _grade_name(getattr(tr, "trophy_type", "")),
+            }
+        )
+    if key is not None:
+        cache.save(key, {"trophies": earned})
+    return earned
+
+
+def build_profile_from_psn(
+    npsso: str | None = None,
+    *,
+    cache=None,
+    on_progress: Callable[[int, int], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
+    max_titles: int | None = None,
+) -> ProfileData | None:
+    """Build ProfileData for the token owner's own account from the PSN API.
+
+    Returns None if no token is configured.
+    """
+    npsso = npsso or settings.psn_npsso
+    if not npsso:
+        return None
+
+    me = _client(npsso)
+    online_id = me.online_id
+
+    stats: dict[str, str] = {}
+    avatar_url: str | None = None
+
+    # Best-effort level + avatar — never fail the whole profile over these.
+    try:
+        summary = me.trophy_summary()
+        level = getattr(summary, "trophy_level", None)
+        if level is not None:
+            stats["Level"] = str(level)
+    except Exception as e:
+        logger.info("trophy_summary unavailable: %s", e)
+    try:
+        prof = me.get_profile_legacy()
+        avatars = ((prof or {}).get("profile", {}) or {}).get("avatarUrls") or []
+        if avatars and isinstance(avatars[0], dict):
+            avatar_url = avatars[0].get("avatarUrl")
+    except Exception as e:
+        logger.info("avatar lookup unavailable: %s", e)
+
+    raw_playtime_seconds = _playtime_from_title_stats(me, online_id, cache)
+    titles = list(me.trophy_titles())
+    if max_titles is not None:
+        titles = titles[:max_titles]
+    total_titles = len(titles)
+    playtime_seconds = _match_playtime_titles(
+        raw_playtime_seconds,
+        [title.title_name for title in titles],
+    )
+
+    counts = TrophyCounts()
+    log: list[Trophy] = []
+    errors = 0
+
+    for idx, title in enumerate(titles):
+        if should_stop is not None and should_stop():
+            break
+        earned = _earned_trophies_for_title(me, title, cache)
+        if earned is None:
+            errors += 1
+            logger.warning(
+                "Skipping title %r: no platform returned trophies",
+                getattr(title, "title_name", "?"),
+            )
+        else:
+            for e in earned:
+                key = e["grade"].lower()
+                if key in _GRADE_KEYS:
+                    setattr(counts, key, getattr(counts, key) + 1)
+                log.append(Trophy(**e))
+        if on_progress is not None:
+            on_progress(idx + 1, total_titles)
+
+    counts.total = counts.platinum + counts.gold + counts.silver + counts.bronze
+
+    # A real profile with titles always has earned trophies; zero means every
+    # per-title fetch failed (typically PSN rate-limiting). Treat as a failed
+    # fetch and return None so the caller does NOT cache this garbage.
+    if titles and not log:
+        logger.warning(
+            "PSN fetch for %s yielded 0 trophies from %d titles (%d errored); "
+            "treating as throttled/failed, not caching.",
+            online_id, len(titles), errors,
+        )
+        return None
+
+    if raw_playtime_seconds:
+        stats["Playtime"] = _format_playtime(sum(raw_playtime_seconds.values()))
+    stats["Source"] = "PSN API"
+
+    return ProfileData(
+        profile_summary=ProfileSummary(
+            username=online_id,
+            avatar_url=avatar_url,
+            total_trophies=counts,
+            stats=stats,
+        ),
+        trophy_log=log,
+        game_playtime_seconds=playtime_seconds,
+    )

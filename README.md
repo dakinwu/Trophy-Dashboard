@@ -1,99 +1,73 @@
 # Trophy Hunter Dashboard
 
-A Streamlit-powered dashboard for visualizing and analyzing PlayStation trophy data, scraped from [PSNProfiles](https://psnprofiles.com/). View your trophy milestones, rarest achievements, gaming streaks, and more in a beautiful, interactive UI.
+A personal PlayStation trophy dashboard — rebuilt as a **FastAPI backend + React SPA**
+(from the original Streamlit app by
+[gonz4lex](https://github.com/gonz4lex/trophy-hunter-dashboard)).
 
-[Check it out here! 🚀](https://gonz4lex-trophy-hunter-dashboard-app-av0qbw.streamlit.app/)
+Your **own** profile's data comes from the **official PlayStation Network API**
+(via an NPSSO token): trophies, rarity, earned dates, and **real playtime** — no
+Cloudflare in the way. Other public profiles fall back to PSNProfiles through a
+visible nodriver-controlled Chrome session.
 
----
+## Architecture
 
-## Features
+- **`backend/`** — FastAPI. PSN official API (PSNAWP) as the primary source for the
+  token owner + a PSNProfiles scraper fallback, a 24-hour file cache, and REST + SSE
+  endpoints.
+- **`frontend/`** — Vite + React + TypeScript + Tailwind ("Trophy Gold" dark theme).
+  Pages: Overview, Games, Timeline, Milestones, Data.
 
-- **Automated Scraping**: Fetches your public trophy log from PSNProfiles.
-- **Caching**: Stores data locally for 24 hours to minimize scraping and speed up loading.
-- **Visualizations**:
-  - Trophy timeline and heatmap
-  - Rarity distribution and hunting style
-  - Fastest platinums leaderboard
-  - Gaming streaks and activity patterns
-  - Milestone trophies and more
-- **Raw Data Export**: Filter and download your trophy data as CSV.
-- **Responsive UI**: Built with Streamlit for easy use on desktop and mobile.
+## Setup (first time)
 
----
+1. **Backend** (Python 3.10+):
+   ```powershell
+   cd backend
+   python -m venv .venv
+   .venv\Scripts\python.exe -m pip install -r requirements.lock
+   ```
+   `requirements.lock` contains the reproducible resolved environment;
+   `requirements.txt` remains the short list of direct dependencies.
+2. **Frontend** (Node 18+):
+   ```powershell
+   cd frontend
+   npm install
+   ```
+3. **PSN token** — copy `.env.example` to `.env` (in the repo root) and set `PSN_NPSSO`:
+   - Log into playstation.com, then open
+     `https://ca.account.sony.com/api/v1/ssocookie` and copy the `npsso` value.
+   - `.env` is gitignored. The token expires roughly every two months — refresh it
+     when your trophies stop loading.
 
-## Screenshots
+## Run
 
-![Showcase](assets/showcase.png)
+- **Easiest — double-click `run.cmd`** in the project folder (File Explorer). It
+  starts the backend (`:8000`) + frontend (`:5173`) in two windows and opens your
+  dashboard in the browser. Close those two windows to stop the app.
+- From a terminal instead: `run.cmd`, or `./run.ps1` (PowerShell).
+- **Manual:**
+  - Backend: `cd backend; .venv\Scripts\python.exe -m uvicorn app.main:app --port 8000`
+  - Frontend: `cd frontend; npm run dev`
+- Then open **http://localhost:5173** and enter your PSN ID.
 
-![Timeline](assets/timeline.png)
+## Notes
 
-![Deep Dive](assets/deep-dive.png)
+- The first load of a large library is slow (the PSN API is per-game and rate-limited);
+  it's cached for 24 hours afterwards.
+- Looking up another public profile opens a Chrome window while nodriver passes
+  PSNProfiles' Cloudflare challenge. The first page can take a few minutes; the
+  same browser session and cookies are reused for every trophy-log page.
+- PSNProfiles guide difficulty and platinum-time data is loaded on demand from a
+  game card. A cache miss opens the same visible Chrome flow; successful guide
+  results and their exact URLs are cached for 90 days.
+- PSNine links resolve the site's own Simplified Chinese game name on first click,
+  cache it, then open `https://www.psnine.com/psngame?title=<簡中名稱>`.
 
-![Milestones](assets/milestones.png)
+## Tests
 
-![Raw Data](assets/raw-data.png)
-
-## Getting Started
-
-1. **Clone the repository:**
-    ```sh
-    git clone https://github.com/gonz4lex/trophy-hunter-dashboard.git
-    cd trophy-hunter-dashboard
-    ```
-
-2. **Install dependencies:**
-    ```sh
-    pip install -r requirements.txt
-    ```
-
-3. **Run the app:**
-    ```sh
-    streamlit run app.py
-    ```
-
----
-
-## Usage
-
-1. Enter your PSN username in the sidebar.
-2. Click "Analyze" to fetch and visualize your trophy data.
-3. Explore the tabs for Showcase, Timeline, Deep Dive, Milestones, and Raw Data.
-4. Use filters and download options as needed.
-
----
-
-## Project Structure
-
+```powershell
+cd backend; .venv\Scripts\python.exe -m pytest -q
 ```
-.
-├── app.py # Main Streamlit app
-├── assets # Images
-├── components # UI components
-│   ├── __init__.py
-│   ├── utils.py
-│   └── visualizations.py
-├── core # Scraper and related utilities
-│   ├── cache.py
-│   └── scraper.py
-├── LICENSE
-└── README.md
-```
-
-## Data & Privacy
-
-- Only public PSNProfiles data is scraped.
-- Data is cached locally and never shared.
-- Respects PSNProfiles’ terms of service and rate limits.
-
-## Contributing
-
-Pull requests and suggestions are welcome! Please open an issue first to discuss major changes.
 
 ## License
 
-[MIT](LICENSE)
-
-## Acknowledgments
-
-- [PSNProfiles](https://psnprofiles.com/) for the trophy data.
-- [Streamlit](https://streamlit.io/) for the UI framework.
+[MIT](LICENSE). Trophy data © Sony / PSNProfiles.
