@@ -1,6 +1,14 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ApiError, getHltb, getProfile, type HltbTimes, type ProfileData } from './api'
+import {
+  ApiError,
+  getHltb,
+  getProfile,
+  getPsnprofilesGuide,
+  type HltbTimes,
+  type ProfileData,
+  type PsnprofilesGuide,
+} from './api'
 
 /**
  * Fetches a PSN profile + trophy log for `username` (served from the backend's
@@ -47,6 +55,20 @@ export function useHltb(game: string | undefined) {
     queryKey: ['hltb', game],
     queryFn: () => getHltb(game as string),
     enabled: Boolean(game),
+    staleTime: 24 * 60 * 60 * 1000,
+    retry: false,
+  })
+}
+
+/**
+ * PSNProfiles guide data is deliberately opt-in: a cache miss opens the visible
+ * browser needed for Cloudflare, so mounting a page of cards must not trigger it.
+ */
+export function usePsnprofilesGuide(game: string | undefined, enabled: boolean) {
+  return useQuery<PsnprofilesGuide | null>({
+    queryKey: ['psnprofiles-guide', game],
+    queryFn: () => getPsnprofilesGuide(game as string),
+    enabled: Boolean(game) && enabled,
     staleTime: 24 * 60 * 60 * 1000,
     retry: false,
   })

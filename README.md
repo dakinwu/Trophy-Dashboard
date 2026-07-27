@@ -6,8 +6,8 @@ A personal PlayStation trophy dashboard — rebuilt as a **FastAPI backend + Rea
 
 Your **own** profile's data comes from the **official PlayStation Network API**
 (via an NPSSO token): trophies, rarity, earned dates, and **real playtime** — no
-Cloudflare in the way. Other public profiles fall back to best-effort PSNProfiles
-scraping.
+Cloudflare in the way. Other public profiles fall back to PSNProfiles through a
+visible nodriver-controlled Chrome session.
 
 ## Architecture
 
@@ -23,8 +23,10 @@ scraping.
    ```powershell
    cd backend
    python -m venv .venv
-   .venv\Scripts\python.exe -m pip install -r requirements.txt
+   .venv\Scripts\python.exe -m pip install -r requirements.lock
    ```
+   `requirements.lock` contains the reproducible resolved environment;
+   `requirements.txt` remains the short list of direct dependencies.
 2. **Frontend** (Node 18+):
    ```powershell
    cd frontend
@@ -51,9 +53,14 @@ scraping.
 
 - The first load of a large library is slow (the PSN API is per-game and rate-limited);
   it's cached for 24 hours afterwards.
-- PSNProfiles scraping is currently blocked by Cloudflare's managed challenge, so
-  looking up *other* public profiles won't work until that's addressed — your own
-  profile via the PSN API is unaffected.
+- Looking up another public profile opens a Chrome window while nodriver passes
+  PSNProfiles' Cloudflare challenge. The first page can take a few minutes; the
+  same browser session and cookies are reused for every trophy-log page.
+- PSNProfiles guide difficulty and platinum-time data is loaded on demand from a
+  game card. A cache miss opens the same visible Chrome flow; successful guide
+  results and their exact URLs are cached for 90 days.
+- PSNine links resolve the site's own Simplified Chinese game name on first click,
+  cache it, then open `https://www.psnine.com/psngame?title=<簡中名稱>`.
 
 ## Tests
 

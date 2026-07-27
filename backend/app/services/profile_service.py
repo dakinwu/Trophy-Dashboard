@@ -47,10 +47,15 @@ def get_profile(
                 cache.save(key, data.model_dump())
                 return data
 
+    owns_session = session is None
     session = session or create_session()
-    data = psnprofiles.scrape_profile(
-        session, username, on_progress=on_progress, should_stop=should_stop
-    )
+    try:
+        data = psnprofiles.scrape_profile(
+            session, username, on_progress=on_progress, should_stop=should_stop
+        )
+    finally:
+        if owns_session:
+            session.close()
     if data is None:
         return None
 

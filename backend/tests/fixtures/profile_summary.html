@@ -1,17 +1,39 @@
-<html><body>
-<div id="user-bar">
-  <div class="avatar"><img src="https://example.com/avatar.png"></div>
-  <span class="username">TestUser</span>
-  <ul>
-    <li class="total">1,234</li>
-    <li class="platinum">10</li>
-    <li class="gold">50</li>
-    <li class="silver">300</li>
-    <li class="bronze">874</li>
-  </ul>
-</div>
-<div class="stats">
-  <span class="stat">42<span>Level</span></span>
-  <span class="stat">99.9%<span>Completion</span></span>
-</div>
-</body></html>
+<html>
+<body>
+  <!-- Reduced and anonymized from a live PSNProfiles profile captured via nodriver. -->
+  <div id="user-bar" class="user-bar cf">
+    <div class="avatar">
+      <div class="ps-plus">
+        <img src="https://example.com/avatar.png">
+      </div>
+    </div>
+    <ul class="profile-bar">
+      <div class="flex v-align">
+        <div class="grow">
+          <div class="ellipsis"><span class="username">TestUser</span></div>
+        </div>
+        <div class="no-shrink flex v-align level-box">
+          <div class="level-sprite no-shrink level-300"></div>
+          <div class="flex vertical center">
+            <span>42</span>
+            <div class="progress-bar level"><div style="width: 6%;"></div></div>
+          </div>
+        </div>
+        <div class="no-shrink">
+          <li class="total"><span class="icon-sprite"></span>1,234</li>
+          <li class="platinum"><span class="icon-sprite"></span>10</li>
+          <li class="gold"><span class="icon-sprite"></span>50</li>
+          <li class="silver"><span class="icon-sprite"></span>300</li>
+          <li class="bronze"><span class="icon-sprite"></span>874</li>
+        </div>
+      </div>
+    </ul>
+  </div>
+  <div class="stats flex">
+    <span class="stat grow">99.9%<span>Completion</span></span>
+    <span class="rank stat grow green">
+      <a href="/leaderboard/all">174,309<span>World Rank</span></a>
+    </span>
+  </div>
+</body>
+</html>

@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     cache_dir: str = str(_REPO_ROOT / "backend" / "data_cache")
     cors_origins: list[str] = ["http://localhost:5173"]
     scrape_user_agent: str = "TrophyHunter/2.0 (local; hello@example.com)"
+    # Headed Chrome is intentional: PSNProfiles' Cloudflare challenge detects
+    # headless automation.
+    psnprofiles_headless: bool = False
+    psnprofiles_browser_timeout: float = 180.0
 
 
 settings = Settings()

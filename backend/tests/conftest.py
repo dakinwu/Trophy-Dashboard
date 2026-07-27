@@ -19,7 +19,7 @@ class FakeResponse:
 
 
 class FakeSession:
-    """Mimics the subset of a requests/cloudscraper session the scraper uses."""
+    """Mimics the requests-like subset used by the nodriver fetch facade."""
 
     def __init__(self, summary_html: str = "", log_pages: list[str] | None = None):
         self.summary_html = summary_html

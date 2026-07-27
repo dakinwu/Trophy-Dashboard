@@ -33,6 +33,8 @@ def test_parse_profile_summary_extracts_fields():
     assert summary.total_trophies.total == 1234
     assert summary.total_trophies.platinum == 10
     assert summary.stats["Level"] == "42"
+    assert summary.stats["Completion"] == "99.9%"
+    assert summary.stats["World Rank"] == "174309"
 
 
 def test_parse_profile_summary_returns_none_on_garbage():

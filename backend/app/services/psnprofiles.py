@@ -1,49 +1,61 @@
 import logging
 import math
 import random
+import re
 import time
 from typing import Callable
+from urllib.parse import quote
 
 from bs4 import BeautifulSoup
 
+from app.config import settings
 from app.models import ProfileData, ProfileSummary, TrophyCounts, Trophy
 
 logger = logging.getLogger(__name__)
 
 
+def _integer(text: str) -> int:
+    digits = re.sub(r"[^\d]", "", text)
+    return int(digits) if digits else 0
+
+
 def parse_profile_summary(html_content: str) -> ProfileSummary | None:
     soup = BeautifulSoup(html_content, "html.parser")
     try:
-        user_bar = soup.find("div", id="user-bar")
+        user_bar = soup.select_one("#user-bar")
         if not user_bar:
             return None
 
-        username_span = user_bar.find("span", class_="username")
-        username = username_span.text.strip() if username_span else None
+        username_span = user_bar.select_one(".username")
+        username = username_span.get_text(strip=True) if username_span else None
         if not username:
             return None
 
         avatar_url = None
-        avatar_div = user_bar.find("div", class_="avatar")
-        if avatar_div:
-            avatar_img = avatar_div.find("img")
-            if avatar_img and avatar_img.has_attr("src"):
-                avatar_url = avatar_img["src"]
+        avatar_img = user_bar.select_one(".avatar img[src]")
+        if avatar_img:
+            avatar_url = avatar_img["src"]
 
         counts = TrophyCounts()
         for t_type in ["total", "platinum", "gold", "silver", "bronze"]:
-            el = user_bar.find("li", class_=t_type)
+            el = user_bar.select_one(f"li.{t_type}")
             if el:
-                setattr(counts, t_type, int(el.text.strip().replace(",", "")))
+                setattr(counts, t_type, _integer(el.get_text(" ", strip=True)))
 
         stats: dict[str, str] = {}
-        stats_div = soup.find("div", class_="stats")
+        stats_div = soup.select_one(".stats")
         if stats_div:
-            for stat in stats_div.find_all("span", class_="stat"):
-                value = stat.contents[0].strip().replace(",", "")
+            for stat in stats_div.select("span.stat"):
                 label_span = stat.find("span")
-                if label_span:
-                    stats[label_span.text.strip()] = value
+                values = list(stat.stripped_strings)
+                if label_span and values:
+                    stats[label_span.get_text(" ", strip=True)] = values[0].replace(",", "")
+
+        # The current layout moved the trophy level out of `.stats` and into
+        # the profile bar. Keep accepting old fixtures where Level is a stat.
+        level = user_bar.select_one(".level-box .vertical > span")
+        if level and "Level" not in stats:
+            stats["Level"] = level.get_text(strip=True)
 
         return ProfileSummary(
             username=username,
@@ -77,8 +89,11 @@ def parse_trophy_log_page(html_content: str) -> list[Trophy]:
             rarity_span = cells[8].find("span", class_="typo-top")
             grade_img = cells[9].find("img")
 
-            date_str = date_span.text.strip() if date_span else ""
-            time_str = time_span.text.strip() if time_span else ""
+            date_str = date_span.get_text(" ", strip=True) if date_span else ""
+            date_str = re.sub(
+                r"(\d+)\s+(st|nd|rd|th)\b", r"\1\2", date_str, flags=re.IGNORECASE
+            )
+            time_str = time_span.get_text(" ", strip=True) if time_span else ""
 
             trophies.append(
                 Trophy(
@@ -101,7 +116,7 @@ PSN_BASE = "https://psnprofiles.com"
 
 
 def fetch_summary(session, base_url: str) -> ProfileSummary | None:
-    rs = session.get(base_url, timeout=15)
+    rs = session.get(base_url, timeout=settings.psnprofiles_browser_timeout)
     rs.raise_for_status()
     return parse_profile_summary(rs.text)
 
@@ -111,13 +126,19 @@ def fetch_trophy_log(
     base_url: str,
     on_progress: Callable[[int], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
+    total_pages: int | None = None,
 ) -> list[Trophy]:
     all_trophies: list[Trophy] = []
     page = 1
     session.headers.update({"Referer": base_url})
 
-    while should_stop is None or not should_stop():
-        rs = session.get(f"{base_url}/log?page={page}", timeout=15)
+    while (total_pages is None or page <= total_pages) and (
+        should_stop is None or not should_stop()
+    ):
+        rs = session.get(
+            f"{base_url}/log?page={page}",
+            timeout=settings.psnprofiles_browser_timeout,
+        )
         if rs.status_code == 404:
             break
         rs.raise_for_status()
@@ -130,7 +151,8 @@ def fetch_trophy_log(
         if on_progress:
             on_progress(page)
         page += 1
-        time.sleep(random.uniform(1.0, 2.5))
+        if total_pages is None or page <= total_pages:
+            time.sleep(random.uniform(1.0, 2.5))
 
     return all_trophies
 
@@ -141,7 +163,7 @@ def scrape_profile(
     on_progress: Callable[[int, int], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
 ) -> ProfileData | None:
-    base_url = f"{PSN_BASE}/{username}"
+    base_url = f"{PSN_BASE}/{quote(username, safe='')}"
     summary = fetch_summary(session, base_url)
     if summary is None or summary.total_trophies.total == 0:
         return None
@@ -153,6 +175,10 @@ def scrape_profile(
             on_progress(page, total_pages)
 
     log = fetch_trophy_log(
-        session, base_url, on_progress=_page_progress, should_stop=should_stop
+        session,
+        base_url,
+        on_progress=_page_progress,
+        should_stop=should_stop,
+        total_pages=total_pages,
     )
     return ProfileData(profile_summary=summary, trophy_log=log)

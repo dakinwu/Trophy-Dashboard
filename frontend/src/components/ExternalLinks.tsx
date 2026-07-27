@@ -1,8 +1,14 @@
 import { buildGameLinks } from '../lib/links'
 
 /** A row of "search this game on <site>" links for external guide/info sites. */
-export function ExternalLinks({ game }: { game: string }) {
-  const links = buildGameLinks(game)
+export function ExternalLinks({
+  game,
+  psnprofilesGuideUrl,
+}: {
+  game: string
+  psnprofilesGuideUrl?: string
+}) {
+  const links = buildGameLinks(game, psnprofilesGuideUrl)
   return (
     <div className="flex flex-wrap gap-1.5">
       {links.map((link) => (

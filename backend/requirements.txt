@@ -2,7 +2,7 @@ fastapi>=0.110
 uvicorn[standard]>=0.29
 pydantic>=2.6
 pydantic-settings>=2.2
-cloudscraper>=1.2.71
+nodriver>=0.50.3
 beautifulsoup4>=4.12
 requests>=2.31
 sse-starlette>=2.1
@@ -10,6 +10,7 @@ sse-starlette>=2.1
 starlette>=0.49.1,<1.0
 pytest>=8.0
 httpx>=0.27
+howlongtobeatpy>=1.0.22
 
 # PSN official API — the token owner's own trophies + real playtime (via NPSSO)
 PSNAWP

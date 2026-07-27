@@ -107,6 +107,21 @@ export async function getHltb(game: string): Promise<HltbTimes | null> {
   return typeof data?.main_story === 'number' ? (data as HltbTimes) : null
 }
 
+export interface PsnprofilesGuide {
+  title: string | null
+  guide_url: string
+  difficulty: string | null
+  platinum_time: string | null
+}
+
+/** On-demand PSNProfiles trophy-guide metadata; null if no guide was found. */
+export async function getPsnprofilesGuide(game: string): Promise<PsnprofilesGuide | null> {
+  const res = await fetch(`/api/psnprofiles/guide?game=${encodeURIComponent(game)}`)
+  if (!res.ok) return null
+  const data = (await res.json()) as Partial<PsnprofilesGuide>
+  return typeof data?.guide_url === 'string' ? (data as PsnprofilesGuide) : null
+}
+
 // ---------------------------------------------------------------------------
 // SSE stream: GET /api/profile/{username}/stream
 // ---------------------------------------------------------------------------

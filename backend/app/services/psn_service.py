@@ -12,6 +12,9 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
+import unicodedata
+from difflib import SequenceMatcher
 from typing import Callable
 
 from app.config import settings
@@ -21,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 _GRADE_NAMES = {"PLATINUM": "Platinum", "GOLD": "Gold", "SILVER": "Silver", "BRONZE": "Bronze"}
 _GRADE_KEYS = ("platinum", "gold", "silver", "bronze")
+_TITLE_STATS_TTL = 6 * 3600
+_ROMAN_NUMERAL = re.compile(r"^(?:x{0,3})(?:ix|iv|v?i{0,3})$")
 
 
 def _grade_name(trophy_type) -> str:
@@ -48,6 +53,107 @@ def psn_online_id(npsso: str | None = None) -> str | None:
 
 def _format_playtime(total_seconds: float) -> str:
     return f"{int(total_seconds // 3600):,}h"
+
+
+def _normalise_game_name(name: str) -> str:
+    name = unicodedata.normalize("NFKC", name).casefold()
+    name = re.sub(r"[™®©]", "", name)
+    name = re.sub(
+        r"\((?:ps[345]|playstation\s*[345]|vita|cross[- ]?buy)\)",
+        " ",
+        name,
+    )
+    name = name.replace("&", " and ")
+    name = re.sub(r"[^\w]+", " ", name, flags=re.UNICODE)
+    return " ".join(name.split())
+
+
+def _number_tokens(name: str) -> set[str]:
+    return {
+        token
+        for token in _normalise_game_name(name).split()
+        if token.isdigit() or _ROMAN_NUMERAL.fullmatch(token)
+    }
+
+
+def _game_name_score(left: str, right: str) -> float:
+    left_normalised = _normalise_game_name(left)
+    right_normalised = _normalise_game_name(right)
+    if not left_normalised or not right_normalised:
+        return 0.0
+    if left_normalised == right_normalised:
+        return 1.0
+
+    left_numbers = _number_tokens(left)
+    right_numbers = _number_tokens(right)
+    if left_numbers and right_numbers and left_numbers != right_numbers:
+        return 0.0
+
+    if min(len(left_normalised), len(right_normalised)) >= 5 and (
+        left_normalised in right_normalised or right_normalised in left_normalised
+    ):
+        return 0.92
+    return SequenceMatcher(None, left_normalised, right_normalised).ratio()
+
+
+def _match_playtime_titles(
+    playtime_by_stats_name: dict[str, int],
+    trophy_title_names: list[str],
+) -> dict[str, int]:
+    """Key title-stats playtime by trophy-list names using conservative fuzzy matching."""
+    matched: dict[str, int] = {}
+    candidates = list(playtime_by_stats_name.items())
+
+    for trophy_title in trophy_title_names:
+        ranked = sorted(
+            (
+                (_game_name_score(trophy_title, stats_title), seconds)
+                for stats_title, seconds in candidates
+            ),
+            reverse=True,
+        )
+        if not ranked:
+            continue
+        best_score, best_seconds = ranked[0]
+        runner_up = ranked[1][0] if len(ranked) > 1 else 0.0
+        if best_score >= 0.78 and (
+            best_score >= 0.99 or best_score - runner_up >= 0.08
+        ):
+            matched[trophy_title] = best_seconds
+
+    return matched
+
+
+def _title_stats_cache_key(online_id: str) -> str:
+    digest = hashlib.sha256(online_id.casefold().encode("utf-8")).hexdigest()
+    return f"psn_title_stats/{digest}"
+
+
+def _playtime_from_title_stats(me, online_id: str, cache) -> dict[str, int]:
+    """Fetch title stats once per short TTL and return name -> seconds."""
+    key = _title_stats_cache_key(online_id)
+    if cache is not None:
+        cached = cache.load(key, _TITLE_STATS_TTL)
+        if cached is not None:
+            return {
+                name: int(seconds)
+                for name, seconds in cached.get("playtime_seconds", {}).items()
+            }
+
+    playtime_seconds: dict[str, int] = {}
+    try:
+        for stat in me.title_stats():
+            duration = getattr(stat, "play_duration", None)
+            name = getattr(stat, "name", None)
+            if duration is not None and name:
+                playtime_seconds[name] = int(duration.total_seconds())
+    except Exception as exc:
+        logger.info("title_stats unavailable: %s", exc)
+        return {}
+
+    if cache is not None:
+        cache.save(key, {"playtime_seconds": playtime_seconds})
+    return playtime_seconds
 
 
 def _fetch_title_trophies(me, title):
@@ -159,20 +265,15 @@ def build_profile_from_psn(
     except Exception as e:
         logger.info("avatar lookup unavailable: %s", e)
 
-    # Per-game real playtime (seconds), keyed by title name (best-effort).
-    playtime_seconds: dict[str, float] = {}
-    try:
-        for s in me.title_stats():
-            dur = getattr(s, "play_duration", None)
-            if dur is not None:
-                playtime_seconds[s.name] = dur.total_seconds()
-    except Exception as e:
-        logger.info("title_stats unavailable: %s", e)
-
+    raw_playtime_seconds = _playtime_from_title_stats(me, online_id, cache)
     titles = list(me.trophy_titles())
     if max_titles is not None:
         titles = titles[:max_titles]
     total_titles = len(titles)
+    playtime_seconds = _match_playtime_titles(
+        raw_playtime_seconds,
+        [title.title_name for title in titles],
+    )
 
     counts = TrophyCounts()
     log: list[Trophy] = []
@@ -210,8 +311,8 @@ def build_profile_from_psn(
         )
         return None
 
-    if playtime_seconds:
-        stats["Playtime"] = _format_playtime(sum(playtime_seconds.values()))
+    if raw_playtime_seconds:
+        stats["Playtime"] = _format_playtime(sum(raw_playtime_seconds.values()))
     stats["Source"] = "PSN API"
 
     return ProfileData(
@@ -222,5 +323,5 @@ def build_profile_from_psn(
             stats=stats,
         ),
         trophy_log=log,
-        game_playtime_seconds={name: int(sec) for name, sec in playtime_seconds.items()},
+        game_playtime_seconds=playtime_seconds,
     )

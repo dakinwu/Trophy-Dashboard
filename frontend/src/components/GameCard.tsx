@@ -1,14 +1,19 @@
+import { useState } from 'react'
 import type { TrophyGrade } from '../lib/api'
 import type { GameSummary } from '../lib/games'
 import { formatPlaytime } from '../lib/games'
 import { GRADE_COLOR_VAR } from '../lib/trophy'
-import { useHltb } from '../lib/queries'
+import { useHltb, usePsnprofilesGuide } from '../lib/queries'
 import { ExternalLinks } from './ExternalLinks'
 
 const GRADE_ORDER: TrophyGrade[] = ['Platinum', 'Gold', 'Silver', 'Bronze']
 
 export function GameCard({ summary }: { summary: GameSummary }) {
+  const [guideRequested, setGuideRequested] = useState(false)
   const hltb = useHltb(summary.game)
+  const psnprofilesGuide = usePsnprofilesGuide(summary.game, guideRequested)
+  const guide = psnprofilesGuide.data
+
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4 shadow-md shadow-black/10 transition hover:-translate-y-0.5 hover:shadow-lg">
       <div className="flex items-center gap-3">
@@ -70,10 +75,40 @@ export function GameCard({ summary }: { summary: GameSummary }) {
         </p>
       )}
 
-      {/* External guide/info links (Phase 3A). Completion % and difficulty land in Phase 3B. */}
+      {guide && (guide.difficulty || guide.platinum_time) && (
+        <p className="text-xs text-muted">
+          PSNProfiles:
+          {guide.difficulty && <span className="ml-1 text-text">{guide.difficulty}</span>}
+          {guide.difficulty && guide.platinum_time && <span> · </span>}
+          {guide.platinum_time && <span className="text-text">{guide.platinum_time}</span>}
+        </p>
+      )}
+
+      {!guideRequested && (
+        <button
+          type="button"
+          onClick={() => setGuideRequested(true)}
+          className="self-start text-xs font-medium text-muted underline decoration-border underline-offset-2 transition hover:text-accent"
+        >
+          Load PSNProfiles guide details
+        </button>
+      )}
+      {guideRequested && psnprofilesGuide.isFetching && (
+        <p className="text-xs text-muted">Loading PSNProfiles guide…</p>
+      )}
+      {guideRequested && !psnprofilesGuide.isFetching && psnprofilesGuide.isSuccess && !guide && (
+        <button
+          type="button"
+          onClick={() => void psnprofilesGuide.refetch()}
+          className="self-start text-xs font-medium text-muted underline decoration-border underline-offset-2 transition hover:text-accent"
+        >
+          Guide unavailable · retry
+        </button>
+      )}
+
       <div className="flex flex-col gap-1.5">
         <span className="text-[10px] font-medium uppercase tracking-wide text-muted">Guides &amp; info</span>
-        <ExternalLinks game={summary.game} />
+        <ExternalLinks game={summary.game} psnprofilesGuideUrl={guide?.guide_url} />
       </div>
     </div>
   )
