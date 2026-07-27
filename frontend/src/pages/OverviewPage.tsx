@@ -3,6 +3,7 @@ import { ErrorState } from '../components/ErrorState'
 import { HeroHeader } from '../components/HeroHeader'
 import { LoadingProgress } from '../components/LoadingProgress'
 import { PlatinumMosaic } from '../components/PlatinumMosaic'
+import { PsnprofilesRankings } from '../components/PsnprofilesRankings'
 import { RarestTrophies } from '../components/RarestTrophies'
 import { StatTiles } from '../components/StatTiles'
 import { ApiError } from '../lib/api'
@@ -62,6 +63,7 @@ export function OverviewPage() {
     <div className="flex flex-col gap-6">
       <HeroHeader summary={profile_summary} />
       <StatTiles counts={profile_summary.total_trophies} playtime={profile_summary.stats.Playtime} />
+      <PsnprofilesRankings summary={profile_summary} />
       <div className="grid gap-6 lg:grid-cols-2">
         <PlatinumMosaic trophies={trophy_log} />
         <RarestTrophies trophies={trophy_log} />

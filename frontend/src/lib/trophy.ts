@@ -14,6 +14,24 @@ export function parseRarityPercent(rarityPercent: string): number {
   return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY
 }
 
+/** Labels rarity explicitly so official PSN and PSNProfiles samples are not conflated. */
+export function formatTrophyRarity(trophy: Trophy): string {
+  const values: string[] = []
+  if (trophy.psn_rarity_percent) values.push(`PSN ${trophy.psn_rarity_percent}`)
+  if (trophy.psnprofiles_rarity_percent) {
+    values.push(`PSNP ${trophy.psnprofiles_rarity_percent}`)
+  }
+  if (values.length > 0) return values.join(' · ')
+
+  const label =
+    trophy.rarity_source === 'psn'
+      ? 'PSN'
+      : trophy.rarity_source === 'psnprofiles'
+        ? 'PSNP'
+        : 'Rarity'
+  return `${label} ${trophy.rarity_percent}`
+}
+
 /** Returns the `count` trophies with the lowest rarity percentage (rarest first). */
 export function getRarestTrophies(trophies: Trophy[], count = 5): Trophy[] {
   return [...trophies]

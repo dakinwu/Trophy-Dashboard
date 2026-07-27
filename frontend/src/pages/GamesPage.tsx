@@ -40,6 +40,9 @@ function GamesContent({
     [summaries],
   )
   const rarityDistribution = useMemo(() => getRarityDistribution(trophyLog), [trophyLog])
+  const raritySource = trophyLog.find((trophy) => trophy.rarity_source)?.rarity_source
+  const raritySourceLabel =
+    raritySource === 'psn' ? 'PSN' : raritySource === 'psnprofiles' ? 'PSNProfiles' : null
   const topGames = useMemo(() => getTopGamesByTrophies(summaries, 8), [summaries])
   const fastestPlatinums = useMemo(
     () => getFastestPlatinumsByGame(trophyLog).slice(0, 8),
@@ -65,7 +68,12 @@ function GamesContent({
         <h2 className="text-lg font-semibold text-text">Insights</h2>
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-2xl border border-border bg-surface p-5">
-            <h3 className="mb-4 text-sm font-semibold text-text">Rarity Distribution</h3>
+            <h3 className="mb-4 text-sm font-semibold text-text">
+              Rarity Distribution
+              {raritySourceLabel && (
+                <span className="ml-1 font-normal text-muted">· {raritySourceLabel}</span>
+              )}
+            </h3>
             <RarityDistributionChart data={rarityDistribution} />
           </div>
           <div className="rounded-2xl border border-border bg-surface p-5">

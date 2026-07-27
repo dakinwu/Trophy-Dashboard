@@ -1,5 +1,5 @@
 import type { DataRow } from '../lib/dataTable'
-import { GRADE_COLOR_VAR } from '../lib/trophy'
+import { formatTrophyRarity, GRADE_COLOR_VAR } from '../lib/trophy'
 
 export function TrophyTable({ rows }: { rows: DataRow[] }) {
   if (rows.length === 0) {
@@ -54,7 +54,9 @@ export function TrophyTable({ rows }: { rows: DataRow[] }) {
                   {row.grade}
                 </span>
               </td>
-              <td className="whitespace-nowrap px-3 py-2 text-muted">{row.rarity_percent}</td>
+              <td className="whitespace-nowrap px-3 py-2 text-muted">
+                {formatTrophyRarity(row)}
+              </td>
             </tr>
           ))}
         </tbody>

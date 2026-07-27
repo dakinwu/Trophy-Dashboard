@@ -102,6 +102,10 @@ def parse_trophy_log_page(html_content: str) -> list[Trophy]:
                     title=title_anchor.text.strip() if title_anchor else "N/A",
                     timestamp=f"{date_str} {time_str}".strip(),
                     rarity_percent=rarity_span.text.strip() if rarity_span else "N/A",
+                    rarity_source="psnprofiles",
+                    psnprofiles_rarity_percent=(
+                        rarity_span.text.strip() if rarity_span else None
+                    ),
                     grade=grade_img["title"] if grade_img else "N/A",
                 )
             )

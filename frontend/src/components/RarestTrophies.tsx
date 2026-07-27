@@ -1,5 +1,5 @@
 import type { Trophy } from '../lib/api'
-import { GRADE_COLOR_VAR, getRarestTrophies } from '../lib/trophy'
+import { formatTrophyRarity, GRADE_COLOR_VAR, getRarestTrophies } from '../lib/trophy'
 
 export function RarestTrophies({ trophies }: { trophies: Trophy[] }) {
   const rarest = getRarestTrophies(trophies, 5)
@@ -33,7 +33,7 @@ export function RarestTrophies({ trophies }: { trophies: Trophy[] }) {
                   borderColor: GRADE_COLOR_VAR[trophy.grade],
                 }}
               >
-                {trophy.rarity_percent}
+                {formatTrophyRarity(trophy)}
               </span>
             </li>
           ))}

@@ -35,6 +35,7 @@ def test_parse_profile_summary_extracts_fields():
     assert summary.stats["Level"] == "42"
     assert summary.stats["Completion"] == "99.9%"
     assert summary.stats["World Rank"] == "174309"
+    assert summary.stats["Country Rank"] == "4321"
 
 
 def test_parse_profile_summary_returns_none_on_garbage():
@@ -49,6 +50,8 @@ def test_parse_trophy_log_page_extracts_rows():
     assert t.title == "First Blood"
     assert t.timestamp == "6th Jul 2024 10:11:23 pm"
     assert t.rarity_percent == "2.5%"
+    assert t.rarity_source == "psnprofiles"
+    assert t.psnprofiles_rarity_percent == "2.5%"
     assert t.grade == "Gold"
 
 

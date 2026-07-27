@@ -42,3 +42,21 @@ def test_psnprofiles_guide_returns_enrichment(monkeypatch):
     resp = client.get("/api/psnprofiles/guide", params={"game": "God of War"})
     assert resp.status_code == 200
     assert resp.json()["difficulty"] == "4/10"
+
+
+def test_psnprofiles_stats_returns_rankings(monkeypatch):
+    monkeypatch.setattr(
+        enrich_api,
+        "get_psnprofiles_stats",
+        lambda username: {
+            "world_rank": 174309,
+            "country_rank": 4321,
+            "country_label": "Country Rank",
+            "completion": "99.9%",
+            "profile_url": f"https://psnprofiles.com/{username}",
+        },
+    )
+    resp = client.get("/api/psnprofiles/stats", params={"username": "TestUser"})
+    assert resp.status_code == 200
+    assert resp.json()["world_rank"] == 174309
+    assert resp.json()["country_rank"] == 4321
