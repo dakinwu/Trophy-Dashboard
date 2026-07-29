@@ -15,7 +15,7 @@ up without prior chat context. See also `docs/superpowers/specs/` (design) and
   Endpoints: `GET /api/profile/{username}`
   (own id → PSN API, else scrape), `/api/profile/{username}/stream` (SSE),
   `/api/hltb`, `/api/psnine`, `/api/psnprofiles/guide`,
-  `/api/psnprofiles/stats`, `/api/health`. 46 pytest tests, pristine.
+  `/api/psnprofiles/stats`, `/api/health`. 54 pytest tests, pristine.
 - **Frontend** (`frontend/`, Vite + React + TS + Tailwind, "Trophy Gold" theme):
   top-nav pages Overview / Games / Timeline / Milestones / Data. Real playtime
   tile + per-game playtime, per-game external links (PSNProfiles / PSNine / HLTB /
@@ -63,6 +63,10 @@ upgrade the search link to the exact guide URL after a successful lookup.
 - ~~Rarity provenance and profile ranks~~ → DONE. Trophy percentages explicitly
   identify official PSN vs. PSNProfiles data, while Overview loads PSNProfiles
   world/country rank on demand and caches successful results for 6 hours.
+- ~~Per-game trophy detail~~ → DONE. Game cards open a dedicated trophy-list
+  page with earned timestamps, locked trophies, grade, official PSN rarity,
+  and on-demand PSNProfiles tracked-player rarity. Official and PSNProfiles
+  percentages stay separately labeled; PS4/PS5 lists remain distinct.
 
 ## Key facts for a fresh session
 - PSN id: **`dakinwu20`**. NPSSO token lives in the **repo-root `.env`** (gitignored;

@@ -44,13 +44,27 @@ class FakeMe:
         self.trophy_calls += 1
         return [
             SimpleNamespace(
+                trophy_id=1,
                 earned=True,
                 earned_date_time=datetime(2026, 7, 25, tzinfo=timezone.utc),
                 trophy_earn_rate=12.5,
+                trophy_rarity=SimpleNamespace(name="VERY_RARE"),
                 trophy_icon_url="https://example/trophy.png",
                 trophy_name="What now?",
+                trophy_detail="Earn every trophy.",
                 trophy_type=SimpleNamespace(name="PLATINUM"),
-            )
+            ),
+            SimpleNamespace(
+                trophy_id=2,
+                earned=False,
+                earned_date_time=None,
+                trophy_earn_rate=82.0,
+                trophy_rarity=SimpleNamespace(name="COMMON"),
+                trophy_icon_url="https://example/locked.png",
+                trophy_name="Still hidden",
+                trophy_detail="Keep exploring.",
+                trophy_type=SimpleNamespace(name="BRONZE"),
+            ),
         ]
 
 
@@ -141,4 +155,31 @@ def test_build_profile_caches_title_stats_and_trophies(monkeypatch, tmp_path):
     assert first.trophy_log[0].rarity_source == "psn"
     assert first.trophy_log[0].psn_rarity_percent == "12.5%"
     assert me.title_stats_calls == 1
+    assert me.trophy_calls == 1
+
+
+def test_build_game_detail_keeps_unearned_trophies_and_caches(monkeypatch, tmp_path):
+    me = FakeMe()
+    monkeypatch.setattr(psn_service, "_client", lambda _npsso: me)
+    cache = FileCache(tmp_path)
+
+    first = psn_service.build_game_detail_from_psn(
+        "TUNIC™ (PS5)",
+        "token",
+        cache=cache,
+    )
+    second = psn_service.build_game_detail_from_psn(
+        "TUNIC™ (PS5)",
+        "token",
+        cache=cache,
+    )
+
+    assert first == second
+    assert first is not None
+    assert first.complete is True
+    assert len(first.trophies) == 2
+    assert first.trophies[0].earned is True
+    assert first.trophies[0].rarity_label == "Very Rare"
+    assert first.trophies[1].earned is False
+    assert first.trophies[1].timestamp == ""
     assert me.trophy_calls == 1

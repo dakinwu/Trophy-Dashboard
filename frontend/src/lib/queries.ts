@@ -2,14 +2,19 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ApiError,
+  getGameDetail,
   getHltb,
   getProfile,
   getPsnprofilesGuide,
   getPsnprofilesStats,
+  getPsnprofilesTrophies,
+  type GameTrophyDetail,
   type HltbTimes,
+  type Platform,
   type ProfileData,
   type PsnprofilesGuide,
   type PsnprofilesStats,
+  type PsnprofilesTrophyList,
 } from './api'
 
 /**
@@ -21,6 +26,19 @@ export function useProfile(username: string | undefined) {
     queryKey: ['profile', username],
     queryFn: () => getProfile(username as string),
     enabled: Boolean(username),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useGameDetail(
+  username: string | undefined,
+  game: string | undefined,
+) {
+  return useQuery<GameTrophyDetail, ApiError>({
+    queryKey: ['game-detail', username, game],
+    queryFn: () => getGameDetail(username as string, game as string),
+    enabled: Boolean(username && game),
     retry: false,
     staleTime: 5 * 60 * 1000,
   })
@@ -83,6 +101,20 @@ export function usePsnprofilesStats(username: string | undefined, enabled: boole
     queryFn: () => getPsnprofilesStats(username as string),
     enabled: Boolean(username) && enabled,
     staleTime: 60 * 60 * 1000,
+    retry: false,
+  })
+}
+
+/** One title only, so PSNProfiles rarity enrichment is safe to load on entry. */
+export function usePsnprofilesTrophies(
+  game: string | undefined,
+  platform: Platform | undefined,
+) {
+  return useQuery<PsnprofilesTrophyList | null>({
+    queryKey: ['psnprofiles-trophies', game, platform],
+    queryFn: () => getPsnprofilesTrophies(game as string, platform),
+    enabled: Boolean(game),
+    staleTime: 24 * 60 * 60 * 1000,
     retry: false,
   })
 }

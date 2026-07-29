@@ -60,3 +60,29 @@ def test_psnprofiles_stats_returns_rankings(monkeypatch):
     assert resp.status_code == 200
     assert resp.json()["world_rank"] == 174309
     assert resp.json()["country_rank"] == 4321
+
+
+def test_psnprofiles_trophies_returns_per_trophy_rarity(monkeypatch):
+    monkeypatch.setattr(
+        enrich_api,
+        "get_psnprofiles_trophies",
+        lambda game, platform: {
+            "title": game,
+            "platform": platform,
+            "game_url": "https://psnprofiles.com/trophies/123-test-game",
+            "trophies": [
+                {
+                    "title": "First Blood",
+                    "psnprofiles_rarity_percent": "2.5%",
+                    "rarity_label": "Ultra Rare",
+                    "trophy_url": "https://psnprofiles.com/trophy/123-test-game/1-first-blood",
+                }
+            ],
+        },
+    )
+    resp = client.get(
+        "/api/psnprofiles/trophies",
+        params={"game": "Test Game", "platform": "PS5"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["trophies"][0]["psnprofiles_rarity_percent"] == "2.5%"

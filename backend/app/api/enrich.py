@@ -10,6 +10,7 @@ from app.services.psnine_service import (
 )
 from app.services.psnprofiles_guide_service import get_psnprofiles_guide
 from app.services.psnprofiles_stats_service import get_psnprofiles_stats
+from app.services.psnprofiles_trophies_service import get_psnprofiles_trophies
 
 router = APIRouter()
 
@@ -41,6 +42,21 @@ def psnprofiles_stats(username: str = Query(..., min_length=1)):
         raise HTTPException(
             status_code=502,
             detail="Error fetching PSNProfiles rankings.",
+        ) from exc
+
+
+@router.get("/psnprofiles/trophies")
+def psnprofiles_trophies(
+    game: str = Query(..., min_length=1),
+    platform: str | None = Query(None),
+):
+    """On-demand per-trophy rarity percentages for one title/platform."""
+    try:
+        return get_psnprofiles_trophies(game, platform) or {}
+    except PSNProfilesFetchError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Error fetching PSNProfiles trophy rarity data.",
         ) from exc
 
 

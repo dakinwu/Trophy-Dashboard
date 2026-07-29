@@ -1,5 +1,6 @@
 from tests.conftest import FakeSession, load_fixture
 from app.core.cache import FileCache
+from app.models import GameTrophyDetail
 from app.services import profile_service
 
 
@@ -40,3 +41,37 @@ def test_get_profile_none_for_missing(tmp_path):
         "Ghost", session=FakeSession(summary_html="<html></html>"), cache=cache
     )
     assert data is None
+
+
+def test_get_game_detail_uses_short_cache(tmp_path, monkeypatch):
+    cache = FileCache(tmp_path)
+    calls = {"count": 0}
+
+    def build(game, cache):
+        calls["count"] += 1
+        return GameTrophyDetail(
+            game=game,
+            display_name="Test Game",
+            platforms=["PS5"],
+            trophies=[],
+            complete=True,
+            source="psn",
+        )
+
+    monkeypatch.setattr(profile_service.settings, "psn_npsso", "token")
+    monkeypatch.setattr(profile_service, "_token_owner_online_id", lambda: "TestUser")
+    monkeypatch.setattr(profile_service, "build_game_detail_from_psn", build)
+
+    first = profile_service.get_game_detail(
+        "TestUser",
+        "Test Game (PS5)",
+        cache=cache,
+    )
+    second = profile_service.get_game_detail(
+        "TestUser",
+        "Test Game (PS5)",
+        cache=cache,
+    )
+
+    assert first == second
+    assert calls["count"] == 1

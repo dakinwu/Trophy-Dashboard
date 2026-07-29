@@ -18,7 +18,13 @@ from difflib import SequenceMatcher
 from typing import Callable, TypedDict
 
 from app.config import settings
-from app.models import ProfileData, ProfileSummary, Trophy, TrophyCounts
+from app.models import (
+    GameTrophyDetail,
+    ProfileData,
+    ProfileSummary,
+    Trophy,
+    TrophyCounts,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +44,39 @@ class _PlaytimeEntry(TypedDict):
 def _grade_name(trophy_type) -> str:
     raw = getattr(trophy_type, "name", str(trophy_type)).upper()
     return _GRADE_NAMES.get(raw, raw.title())
+
+
+def _rarity_label(trophy_rarity, earn_rate) -> str | None:
+    raw = str(
+        getattr(trophy_rarity, "name", None)
+        or getattr(trophy_rarity, "value", None)
+        or trophy_rarity
+        or ""
+    )
+    normalised = re.sub(r"[_\s]+", " ", raw).strip().title()
+    if normalised in {"Ultra Rare", "Very Rare", "Rare", "Uncommon", "Common"}:
+        return normalised
+
+    try:
+        rate = float(earn_rate)
+    except (TypeError, ValueError):
+        return None
+    if rate <= 5:
+        return "Ultra Rare"
+    if rate <= 10:
+        return "Very Rare"
+    if rate <= 20:
+        return "Rare"
+    if rate <= 50:
+        return "Uncommon"
+    return "Common"
+
+
+def _optional_int(value) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _client(npsso: str):
@@ -324,6 +363,100 @@ def _earned_trophies_for_title(me, title, cache) -> list[dict] | None:
     if key is not None:
         cache.save(key, {"trophies": earned})
     return earned
+
+
+def build_game_detail_from_psn(
+    game: str,
+    npsso: str | None = None,
+    *,
+    cache=None,
+) -> GameTrophyDetail | None:
+    """Fetch one complete trophy list for the token owner's account.
+
+    Unlike the profile log, this keeps unearned trophies so the game detail
+    page can mirror the console/app trophy view without changing dashboard
+    totals elsewhere.
+    """
+    game = (game or "").strip()
+    npsso = npsso or settings.psn_npsso
+    if not game or not npsso:
+        return None
+
+    me = _client(npsso)
+    titles = list(me.trophy_titles())
+    display_names = _display_title_names(titles)
+    wanted = game.casefold()
+    match = next(
+        (
+            (title, display_name)
+            for title, display_name in zip(titles, display_names, strict=True)
+            if display_name.casefold() == wanted
+        ),
+        None,
+    )
+    if match is None:
+        return None
+
+    title, display_name = match
+    owner = str(getattr(me, "online_id", "") or "").casefold()
+    title_cache_key = _title_cache_key(title)
+    detail_digest = hashlib.md5(
+        f"{owner}:{title_cache_key}".encode(),
+    ).hexdigest()
+    detail_key = f"psn_game_detail_v1/{detail_digest}"
+    if cache is not None:
+        cached = cache.load(detail_key, _TITLE_TROPHY_TTL)
+        if cached is not None:
+            return GameTrophyDetail.model_validate(cached)
+
+    raw_trophies = _fetch_title_trophies(me, title)
+    if raw_trophies is None:
+        return None
+
+    platforms = _trophy_title_platforms(title) or ["UNKNOWN"]
+    trophies: list[Trophy] = []
+    for raw_trophy in raw_trophies:
+        earned = bool(getattr(raw_trophy, "earned", False))
+        earned_dt = getattr(raw_trophy, "earned_date_time", None)
+        rate = getattr(raw_trophy, "trophy_earn_rate", None)
+        percent = f"{rate}%" if rate is not None else "N/A"
+        trophies.append(
+            Trophy(
+                game=display_name,
+                platforms=platforms,
+                icon_url=getattr(raw_trophy, "trophy_icon_url", "") or "",
+                title=getattr(raw_trophy, "trophy_name", "") or "",
+                description=getattr(raw_trophy, "trophy_detail", None),
+                timestamp=earned_dt.isoformat() if earned and earned_dt else "",
+                earned=earned,
+                rarity_percent=percent,
+                rarity_source="psn",
+                rarity_label=_rarity_label(
+                    getattr(raw_trophy, "trophy_rarity", None),
+                    rate,
+                ),
+                psn_rarity_percent=percent if rate is not None else None,
+                grade=_grade_name(getattr(raw_trophy, "trophy_type", "")),
+                trophy_id=_optional_int(getattr(raw_trophy, "trophy_id", None)),
+            )
+        )
+
+    detail = GameTrophyDetail(
+        game=display_name,
+        display_name=re.sub(
+            r"\s+\((?:PS3|PS4|PS5|PS\s*VITA|PSVITA|PSPC)\)\s*$",
+            "",
+            display_name,
+            flags=re.IGNORECASE,
+        ),
+        platforms=platforms,
+        trophies=trophies,
+        complete=True,
+        source="psn",
+    )
+    if cache is not None:
+        cache.save(detail_key, detail.model_dump())
+    return detail
 
 
 def build_profile_from_psn(

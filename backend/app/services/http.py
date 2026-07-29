@@ -21,6 +21,8 @@ _ERROR_MARKERS = (
     "no guides found",
     "no guide found",
     "no guides were found",
+    "no games found",
+    "no game found",
     "couldn't find any guides",
     "page could not be found",
 )

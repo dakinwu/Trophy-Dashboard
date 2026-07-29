@@ -31,14 +31,18 @@ export interface Trophy {
   platforms?: Platform[]
   icon_url: string
   title: string
+  description?: string | null
   /** Raw string, e.g. "6th Jul 2024 10:11:23 pm" — not parsed here. */
   timestamp: string
+  earned?: boolean
   /** Raw string, e.g. "2.5%". */
   rarity_percent: string
   rarity_source?: RaritySource
+  rarity_label?: string | null
   psn_rarity_percent?: string | null
   psnprofiles_rarity_percent?: string | null
   grade: TrophyGrade
+  trophy_id?: number | null
 }
 
 export interface ProfileData {
@@ -46,6 +50,15 @@ export interface ProfileData {
   trophy_log: Trophy[]
   /** Game title -> real playtime in seconds (PSN API source only). */
   game_playtime_seconds?: Record<string, number>
+}
+
+export interface GameTrophyDetail {
+  game: string
+  display_name: string
+  platforms: Platform[]
+  trophies: Trophy[]
+  complete: boolean
+  source: 'psn' | 'psnprofiles' | 'profile_log'
 }
 
 export interface HealthStatus {
@@ -98,6 +111,13 @@ export function getProfile(username: string, refresh = false): Promise<ProfileDa
   return requestJson<ProfileData>(url)
 }
 
+export function getGameDetail(username: string, game: string): Promise<GameTrophyDetail> {
+  const params = new URLSearchParams({ game })
+  return requestJson<GameTrophyDetail>(
+    `/api/profile/${encodeURIComponent(username)}/game?${params.toString()}`,
+  )
+}
+
 export interface HltbTimes {
   game_name: string
   main_story: number
@@ -136,12 +156,42 @@ export interface PsnprofilesStats {
   profile_url: string
 }
 
+export interface PsnprofilesTrophy {
+  trophy_id: number | null
+  title: string
+  psnprofiles_rarity_percent: string | null
+  rarity_label: string | null
+  trophy_url: string
+}
+
+export interface PsnprofilesTrophyList {
+  title: string
+  platform: string
+  game_url: string
+  trophies: PsnprofilesTrophy[]
+}
+
 /** On-demand PSNProfiles rankings; null if the profile is unavailable. */
 export async function getPsnprofilesStats(username: string): Promise<PsnprofilesStats | null> {
   const res = await fetch(`/api/psnprofiles/stats?username=${encodeURIComponent(username)}`)
   if (!res.ok) return null
   const data = (await res.json()) as Partial<PsnprofilesStats>
   return typeof data?.profile_url === 'string' ? (data as PsnprofilesStats) : null
+}
+
+/** On-demand PSNProfiles rarity data for one exact title/platform. */
+export async function getPsnprofilesTrophies(
+  game: string,
+  platform?: Platform,
+): Promise<PsnprofilesTrophyList | null> {
+  const params = new URLSearchParams({ game })
+  if (platform && platform !== 'UNKNOWN') params.set('platform', platform)
+  const res = await fetch(`/api/psnprofiles/trophies?${params.toString()}`)
+  if (!res.ok) return null
+  const data = (await res.json()) as Partial<PsnprofilesTrophyList>
+  return typeof data?.game_url === 'string' && Array.isArray(data.trophies)
+    ? (data as PsnprofilesTrophyList)
+    : null
 }
 
 // ---------------------------------------------------------------------------

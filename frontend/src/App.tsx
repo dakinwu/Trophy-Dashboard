@@ -5,6 +5,9 @@ import { LandingPage } from './pages/LandingPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 
 const DataPage = lazy(() => import('./pages/DataPage').then((module) => ({ default: module.DataPage })))
+const GameDetailPage = lazy(() =>
+  import('./pages/GameDetailPage').then((module) => ({ default: module.GameDetailPage })),
+)
 const GamesPage = lazy(() => import('./pages/GamesPage').then((module) => ({ default: module.GamesPage })))
 const MilestonesPage = lazy(() =>
   import('./pages/MilestonesPage').then((module) => ({ default: module.MilestonesPage })),
@@ -25,6 +28,7 @@ function App() {
             <Route index element={<LandingPage />} />
             <Route path="u/:username" element={<OverviewPage />} />
             <Route path="u/:username/games" element={<GamesPage />} />
+            <Route path="u/:username/games/detail" element={<GameDetailPage />} />
             <Route path="u/:username/timeline" element={<TimelinePage />} />
             <Route path="u/:username/milestones" element={<MilestonesPage />} />
             <Route path="u/:username/data" element={<DataPage />} />

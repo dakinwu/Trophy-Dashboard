@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { TrophyGrade } from '../lib/api'
 import type { GameSummary } from '../lib/games'
 import { formatPlaytime } from '../lib/games'
@@ -9,7 +10,7 @@ import { PlatformLogos } from './PlatformLogos'
 
 const GRADE_ORDER: TrophyGrade[] = ['Platinum', 'Gold', 'Silver', 'Bronze']
 
-export function GameCard({ summary }: { summary: GameSummary }) {
+export function GameCard({ summary, username }: { summary: GameSummary; username: string }) {
   const [guideRequested, setGuideRequested] = useState(false)
   const hltb = useHltb(summary.displayName)
   const psnprofilesGuide = usePsnprofilesGuide(summary.displayName, guideRequested)
@@ -17,7 +18,11 @@ export function GameCard({ summary }: { summary: GameSummary }) {
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4 shadow-md shadow-black/10 transition hover:-translate-y-0.5 hover:shadow-lg">
-      <div className="flex items-center gap-3">
+      <Link
+        to={`/u/${encodeURIComponent(username)}/games/detail?game=${encodeURIComponent(summary.game)}`}
+        className="flex items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        aria-label={`View ${summary.displayName} trophies`}
+      >
         <img
           src={summary.iconUrl}
           alt=""
@@ -39,7 +44,7 @@ export function GameCard({ summary }: { summary: GameSummary }) {
             {summary.hasPlatinum && <span className="ml-1 text-platinum">· Platinum</span>}
           </p>
         </div>
-      </div>
+      </Link>
 
       <div className="flex flex-wrap gap-1.5 text-xs">
         {GRADE_ORDER.map((grade) => (
@@ -112,6 +117,13 @@ export function GameCard({ summary }: { summary: GameSummary }) {
           Guide unavailable · retry
         </button>
       )}
+
+      <Link
+        to={`/u/${encodeURIComponent(username)}/games/detail?game=${encodeURIComponent(summary.game)}`}
+        className="self-start text-xs font-semibold text-accent transition hover:text-accent-bright"
+      >
+        View trophies →
+      </Link>
 
       <div className="flex flex-col gap-1.5">
         <span className="text-[10px] font-medium uppercase tracking-wide text-muted">Guides &amp; info</span>
