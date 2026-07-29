@@ -36,8 +36,8 @@ def get_profile(
     cache: FileCache | None = None,
 ) -> ProfileData | None:
     cache = cache or FileCache(settings.cache_dir)
-    # v3 invalidates profiles built before trophies carried platform metadata.
-    key = f"profile_v3/{username.lower()}"
+    # v4 invalidates profiles built before trophies carried DLC metadata.
+    key = f"profile_v4/{username.lower()}"
 
     if not force:
         cached = cache.load(key, PROFILE_TTL)

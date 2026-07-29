@@ -79,6 +79,12 @@ def _optional_int(value) -> int | None:
         return None
 
 
+def _is_dlc_trophy(trophy) -> bool:
+    """Return whether a PSN trophy belongs to an additional trophy group."""
+    group_id = str(getattr(trophy, "trophy_group_id", "") or "").strip().lower()
+    return bool(group_id and group_id not in {"default", "base", "0"})
+
+
 def _client(npsso: str):
     from psnawp_api import PSNAWP
 
@@ -324,7 +330,7 @@ def _title_cache_key(title) -> str:
     lu = getattr(title, "last_updated_datetime", None)
     stamp = lu.isoformat() if lu is not None else "?"
     digest = hashlib.md5(f"{title.np_communication_id}:{stamp}".encode()).hexdigest()
-    return f"psn_title/{digest}"
+    return f"psn_title_v2/{digest}"
 
 
 def _earned_trophies_for_title(me, title, cache) -> list[dict] | None:
@@ -358,6 +364,8 @@ def _earned_trophies_for_title(me, title, cache) -> list[dict] | None:
                     f"{rate}%" if rate is not None else None
                 ),
                 "grade": _grade_name(getattr(tr, "trophy_type", "")),
+                "trophy_id": _optional_int(getattr(tr, "trophy_id", None)),
+                "is_dlc": _is_dlc_trophy(tr),
             }
         )
     if key is not None:
@@ -403,7 +411,7 @@ def build_game_detail_from_psn(
     detail_digest = hashlib.md5(
         f"{owner}:{title_cache_key}".encode(),
     ).hexdigest()
-    detail_key = f"psn_game_detail_v1/{detail_digest}"
+    detail_key = f"psn_game_detail_v2/{detail_digest}"
     if cache is not None:
         cached = cache.load(detail_key, _TITLE_TROPHY_TTL)
         if cached is not None:
@@ -438,6 +446,7 @@ def build_game_detail_from_psn(
                 psn_rarity_percent=percent if rate is not None else None,
                 grade=_grade_name(getattr(raw_trophy, "trophy_type", "")),
                 trophy_id=_optional_int(getattr(raw_trophy, "trophy_id", None)),
+                is_dlc=_is_dlc_trophy(raw_trophy),
             )
         )
 

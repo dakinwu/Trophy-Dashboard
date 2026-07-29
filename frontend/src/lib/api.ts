@@ -43,6 +43,7 @@ export interface Trophy {
   psnprofiles_rarity_percent?: string | null
   grade: TrophyGrade
   trophy_id?: number | null
+  is_dlc?: boolean
 }
 
 export interface ProfileData {
@@ -160,6 +161,7 @@ export interface PsnprofilesTrophy {
   trophy_id: number | null
   title: string
   psnprofiles_rarity_percent: string | null
+  rarity_percentages?: string[]
   rarity_label: string | null
   trophy_url: string
 }

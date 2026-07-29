@@ -33,12 +33,16 @@ def test_parse_game_search_uses_requested_platform():
 
 def test_parse_trophy_page_extracts_rarity():
     result = parse_trophy_page(load_fixture("psnprofiles_trophy_page.html"))
-    assert len(result) == 2
+    assert len(result) == 3
     assert result[0]["trophy_id"] == 0
     assert result[0]["title"] == "Ethan Winters"
-    assert result[0]["psnprofiles_rarity_percent"] == "18.42%"
-    assert result[0]["rarity_label"] == "Rare"
+    assert result[0]["psnprofiles_rarity_percent"] == "45.67%"
+    assert result[0]["rarity_percentages"] == ["45.67%", "18.42%"]
+    assert result[0]["rarity_label"] == "Uncommon"
     assert result[1]["trophy_id"] == 1
+    assert result[2]["trophy_id"] == 52
+    assert result[2]["title"] == "Supreme Teen"
+    assert result[2]["psnprofiles_rarity_percent"] == "12.34%"
 
 
 def test_get_psnprofiles_trophies_caches_success(tmp_path):
@@ -60,5 +64,9 @@ def test_get_psnprofiles_trophies_caches_success(tmp_path):
 
     assert first == second
     assert first is not None
-    assert len(first["trophies"]) == 2
+    assert len(first["trophies"]) == 3
     assert len(session.calls) == 2
+    assert session.calls[1] == (
+        "https://psnprofiles.com/trophies/201-resident-evil-village"
+        "?order=rarity"
+    )

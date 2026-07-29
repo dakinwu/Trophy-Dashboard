@@ -53,6 +53,7 @@ class FakeMe:
                 trophy_name="What now?",
                 trophy_detail="Earn every trophy.",
                 trophy_type=SimpleNamespace(name="PLATINUM"),
+                trophy_group_id="default",
             ),
             SimpleNamespace(
                 trophy_id=2,
@@ -64,6 +65,7 @@ class FakeMe:
                 trophy_name="Still hidden",
                 trophy_detail="Keep exploring.",
                 trophy_type=SimpleNamespace(name="BRONZE"),
+                trophy_group_id="001",
             ),
         ]
 
@@ -154,6 +156,7 @@ def test_build_profile_caches_title_stats_and_trophies(monkeypatch, tmp_path):
     assert first.trophy_log[0].platforms == ["PS5"]
     assert first.trophy_log[0].rarity_source == "psn"
     assert first.trophy_log[0].psn_rarity_percent == "12.5%"
+    assert first.trophy_log[0].is_dlc is False
     assert me.title_stats_calls == 1
     assert me.trophy_calls == 1
 
@@ -182,4 +185,5 @@ def test_build_game_detail_keeps_unearned_trophies_and_caches(monkeypatch, tmp_p
     assert first.trophies[0].rarity_label == "Very Rare"
     assert first.trophies[1].earned is False
     assert first.trophies[1].timestamp == ""
+    assert first.trophies[1].is_dlc is True
     assert me.trophy_calls == 1

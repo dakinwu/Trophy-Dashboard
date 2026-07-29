@@ -35,6 +35,7 @@ class Trophy(BaseModel):
     psnprofiles_rarity_percent: str | None = None
     grade: str
     trophy_id: int | None = None
+    is_dlc: bool = False
 
 
 class GameTrophyDetail(BaseModel):

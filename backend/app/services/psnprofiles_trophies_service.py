@@ -97,90 +97,103 @@ def parse_game_search(
     }
 
 
-def parse_trophy_page(html: str) -> list[dict[str, str | int | None]]:
+def parse_trophy_page(
+    html: str,
+) -> list[dict[str, str | int | list[str] | None]]:
     """Extract trophy names and tracked-player rarity from a game page."""
     soup = BeautifulSoup(html, "html.parser")
     # PSNProfiles may repeat the platinum trophy URL in a "Platinum Club"
-    # sidebar before the real trophy table. Restrict parsing to the table when
-    # present so that duplicate cannot shadow the actual row and its rarity.
-    trophy_root = next(
-        (
-            table
-            for table in soup.select("table.zebra")
-            if table.select_one('a[href*="/trophy/"]')
-        ),
-        soup,
-    )
-    trophies: list[dict[str, str | int | None]] = []
+    # sidebar before the real trophy tables. Parse every trophy table so DLC
+    # groups are included, while excluding the sidebar and deduplicating URLs.
+    trophy_roots = [
+        table
+        for table in soup.select("table.zebra")
+        if table.select_one('a[href*="/trophy/"]')
+    ] or [soup]
+    trophies: list[dict[str, str | int | list[str] | None]] = []
     seen_urls: set[str] = set()
 
-    for anchor in trophy_root.select("a[href]"):
-        absolute_url = urljoin(PSNPROFILES_BASE_URL, anchor.get("href", ""))
-        if absolute_url in seen_urls:
-            continue
-        parsed = urlparse(absolute_url)
-        if not _TROPHY_PATH.match(parsed.path):
-            continue
+    for trophy_root in trophy_roots:
+        for anchor in trophy_root.select("a[href]"):
+            absolute_url = urljoin(PSNPROFILES_BASE_URL, anchor.get("href", ""))
+            if absolute_url in seen_urls:
+                continue
+            parsed = urlparse(absolute_url)
+            if not _TROPHY_PATH.match(parsed.path):
+                continue
 
-        container = anchor.find_parent(["tr", "li", "article"])
-        if container is None:
-            container = anchor.find_parent("div")
-        if container is None:
-            continue
+            container = anchor.find_parent(["tr", "li", "article"])
+            if container is None:
+                container = anchor.find_parent("div")
+            if container is None:
+                continue
 
-        title_node = next(
-            (
-                node
-                for node in container.select('a[href*="/trophy/"]')
-                if urljoin(PSNPROFILES_BASE_URL, node.get("href", ""))
-                == absolute_url
-                and node.get_text(" ", strip=True)
-            ),
-            None,
-        )
-        if title_node is None:
             title_node = next(
                 (
                     node
                     for node in container.select('a[href*="/trophy/"]')
+                    if urljoin(PSNPROFILES_BASE_URL, node.get("href", ""))
+                    == absolute_url
                     if node.get_text(" ", strip=True)
                 ),
                 None,
             )
-        title = title_node.get_text(" ", strip=True) if title_node else ""
-        if not title:
-            continue
+            if title_node is None:
+                title_node = next(
+                    (
+                        node
+                        for node in container.select('a[href*="/trophy/"]')
+                        if node.get_text(" ", strip=True)
+                    ),
+                    None,
+                )
+            title = title_node.get_text(" ", strip=True) if title_node else ""
+            if not title:
+                continue
 
-        percentage: str | None = None
-        for node in container.select(".typo-top, .rarity, span"):
-            match = _PERCENT.search(node.get_text(" ", strip=True))
-            if match:
-                percentage = match.group(0)
-                break
-        if percentage is None:
-            match = _PERCENT.search(container.get_text(" ", strip=True))
-            percentage = match.group(0) if match else None
+            percentages: list[str] = []
+            for node in container.select(".typo-top, .rarity, span"):
+                for match in _PERCENT.finditer(node.get_text(" ", strip=True)):
+                    percentage = match.group(0)
+                    if percentage not in percentages:
+                        percentages.append(percentage)
+            if not percentages:
+                percentages = list(
+                    dict.fromkeys(
+                        match.group(0)
+                        for match in _PERCENT.finditer(
+                            container.get_text(" ", strip=True)
+                        )
+                    )
+                )
 
-        label_match = _RARITY_LABEL.search(container.get_text(" ", strip=True))
-        trophy_id_match = re.match(r"^/trophy/[^/]+/(\d+)", parsed.path)
-        seen_urls.add(absolute_url)
-        trophies.append(
-            {
-                "trophy_id": (
-                    # PSNProfiles URL positions are one-based; official PSN
-                    # trophy IDs are zero-based.
-                    int(trophy_id_match.group(1)) - 1
-                    if trophy_id_match
-                    else None
-                ),
-                "title": title,
-                "psnprofiles_rarity_percent": percentage,
-                "rarity_label": (
-                    label_match.group(1).title() if label_match else None
-                ),
-                "trophy_url": absolute_url,
-            }
-        )
+            label_match = _RARITY_LABEL.search(container.get_text(" ", strip=True))
+            trophy_id_match = re.match(r"^/trophy/[^/]+/(\d+)", parsed.path)
+            seen_urls.add(absolute_url)
+            trophies.append(
+                {
+                    "trophy_id": (
+                        # PSNProfiles URL positions are one-based; official PSN
+                        # trophy IDs are zero-based.
+                        int(trophy_id_match.group(1)) - 1
+                        if trophy_id_match
+                        else None
+                    ),
+                    "title": title,
+                    # The page contains both PSNProfiles and official PSN rarity.
+                    # When a site preference flips their visible order, the client
+                    # uses the official value it already has to select the other
+                    # candidate reliably.
+                    "psnprofiles_rarity_percent": (
+                        percentages[0] if percentages else None
+                    ),
+                    "rarity_percentages": percentages,
+                    "rarity_label": (
+                        label_match.group(1).title() if label_match else None
+                    ),
+                    "trophy_url": absolute_url,
+                }
+            )
 
     return trophies
 
@@ -200,9 +213,10 @@ def get_psnprofiles_trophies(
     cache = cache or FileCache(settings.cache_dir)
     cache_seed = f"{game.casefold()}:{(platform or '').upper()}"
     digest = hashlib.sha256(cache_seed.encode("utf-8")).hexdigest()
-    # v2 invalidates entries parsed before platinum/sidebar filtering and
-    # one-based PSNProfiles positions were corrected to official trophy IDs.
-    key = f"psnprofiles_trophies_v2/{digest}"
+    # v4 parses every trophy table (including DLC) and retains both rarity
+    # values so the client can distinguish tracked-player data from official
+    # PSN data.
+    key = f"psnprofiles_trophies_v4/{digest}"
     cached = cache.load(key, _TROPHY_LIST_TTL)
     if cached is not None:
         return cached or None
@@ -221,7 +235,7 @@ def get_psnprofiles_trophies(
             return None
 
         trophy_response = session.get(
-            match["game_url"],
+            f"{match['game_url']}?order=rarity",
             timeout=settings.psnprofiles_browser_timeout,
         )
         trophy_response.raise_for_status()

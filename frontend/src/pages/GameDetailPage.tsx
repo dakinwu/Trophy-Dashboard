@@ -8,7 +8,8 @@ import type { PsnprofilesTrophy, Trophy, TrophyGrade } from '../lib/api'
 import { useGameDetail, usePsnprofilesTrophies } from '../lib/queries'
 import { GRADE_COLOR_VAR, parseRarityPercent, parseTrophyTimestamp } from '../lib/trophy'
 
-type SortMode = 'earned' | 'order' | 'rarity' | 'grade'
+type SortMode = 'order' | 'officialRarity' | 'psnprofilesRarity' | 'earned' | 'grade'
+type EarnedFilter = 'all' | 'earned' | 'locked'
 
 interface EnrichedTrophy extends Trophy {
   psnprofiles_trophy_url?: string
@@ -22,10 +23,17 @@ const GRADE_PRIORITY: Record<TrophyGrade, number> = {
 }
 
 const SORT_OPTIONS: Array<{ id: SortMode; label: string }> = [
-  { id: 'earned', label: 'Earned time' },
   { id: 'order', label: 'Trophy order' },
-  { id: 'rarity', label: 'Official rarity' },
+  { id: 'officialRarity', label: 'Official rarity' },
+  { id: 'psnprofilesRarity', label: 'PSNProfiles rarity' },
+  { id: 'earned', label: 'Earned time' },
   { id: 'grade', label: 'Grade' },
+]
+
+const EARNED_FILTER_OPTIONS: Array<{ id: EarnedFilter; label: string }> = [
+  { id: 'all', label: 'All trophies' },
+  { id: 'earned', label: 'Earned' },
+  { id: 'locked', label: 'Not earned' },
 ]
 
 function normaliseTrophyTitle(title: string): string {
@@ -34,6 +42,23 @@ function normaliseTrophyTitle(title: string): string {
     .toLocaleLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim()
+}
+
+function selectPsnprofilesRarity(
+  trophy: Trophy,
+  match: PsnprofilesTrophy,
+): string | null {
+  const official = trophy.psn_rarity_percent
+    ? parseRarityPercent(trophy.psn_rarity_percent)
+    : Number.POSITIVE_INFINITY
+  const candidates = match.rarity_percentages ?? []
+  if (Number.isFinite(official)) {
+    const tracked = candidates.find(
+      (candidate) => Math.abs(parseRarityPercent(candidate) - official) > 0.0001,
+    )
+    if (tracked) return tracked
+  }
+  return match.psnprofiles_rarity_percent
 }
 
 function mergePsnprofilesRarity(
@@ -56,7 +81,7 @@ function mergePsnprofilesRarity(
     return {
       ...trophy,
       rarity_label: trophy.rarity_label ?? match.rarity_label,
-      psnprofiles_rarity_percent: match.psnprofiles_rarity_percent,
+      psnprofiles_rarity_percent: selectPsnprofilesRarity(trophy, match),
       psnprofiles_trophy_url: match.trophy_url,
     }
   })
@@ -97,32 +122,44 @@ export function GameDetailPage() {
   const [searchParams] = useSearchParams()
   const game = searchParams.get('game')?.trim() || undefined
   const detailQuery = useGameDetail(username, game)
-  const [sortMode, setSortMode] = useState<SortMode>('earned')
+  const [sortMode, setSortMode] = useState<SortMode>('order')
+  const [earnedFilter, setEarnedFilter] = useState<EarnedFilter>('all')
   const detail = detailQuery.data
   const platform = detail?.platforms.find((value) => value !== 'UNKNOWN')
   const psnprofilesQuery = usePsnprofilesTrophies(detail?.display_name, platform)
 
-  const trophies = useMemo(() => {
+  const enrichedTrophies = useMemo(() => {
     if (!detail) return []
-    const merged = mergePsnprofilesRarity(
+    return mergePsnprofilesRarity(
       detail.trophies,
       psnprofilesQuery.data?.trophies ?? [],
     )
-    return [...merged].sort((left, right) => {
-      if (sortMode === 'order') {
-        return (left.trophy_id ?? Number.MAX_SAFE_INTEGER)
-          - (right.trophy_id ?? Number.MAX_SAFE_INTEGER)
-      }
-      if (sortMode === 'rarity') {
-        return parseRarityPercent(left.psn_rarity_percent ?? left.rarity_percent)
-          - parseRarityPercent(right.psn_rarity_percent ?? right.rarity_percent)
-      }
-      if (sortMode === 'grade') {
-        return GRADE_PRIORITY[left.grade] - GRADE_PRIORITY[right.grade]
-      }
-      return earnedTimestamp(right) - earnedTimestamp(left)
+  }, [detail, psnprofilesQuery.data])
+
+  const trophies = useMemo(() => {
+    const filtered = enrichedTrophies.filter((trophy) => {
+      if (earnedFilter === 'earned') return trophy.earned !== false
+      if (earnedFilter === 'locked') return trophy.earned === false
+      return true
     })
-  }, [detail, psnprofilesQuery.data, sortMode])
+    const trophyOrder = (trophy: Trophy) => trophy.trophy_id ?? Number.MAX_SAFE_INTEGER
+
+    return [...filtered].sort((left, right) => {
+      let priority = 0
+      if (sortMode === 'officialRarity') {
+        priority = parseRarityPercent(left.psn_rarity_percent ?? left.rarity_percent)
+          - parseRarityPercent(right.psn_rarity_percent ?? right.rarity_percent)
+      } else if (sortMode === 'psnprofilesRarity') {
+        priority = parseRarityPercent(left.psnprofiles_rarity_percent ?? '')
+          - parseRarityPercent(right.psnprofiles_rarity_percent ?? '')
+      } else if (sortMode === 'grade') {
+        priority = GRADE_PRIORITY[left.grade] - GRADE_PRIORITY[right.grade]
+      } else if (sortMode === 'earned') {
+        priority = earnedTimestamp(right) - earnedTimestamp(left)
+      }
+      return priority || trophyOrder(left) - trophyOrder(right)
+    })
+  }, [earnedFilter, enrichedTrophies, sortMode])
 
   if (!game) {
     return <ErrorState title="No game selected" message="Return to Games and choose a title." />
@@ -146,7 +183,7 @@ export function GameDetailPage() {
   }
 
   const earnedCount = detail.trophies.filter((trophy) => trophy.earned !== false).length
-  const psnprofilesMatched = trophies.filter(
+  const psnprofilesMatched = enrichedTrophies.filter(
     (trophy) => trophy.psnprofiles_rarity_percent,
   ).length
 
@@ -198,35 +235,67 @@ export function GameDetailPage() {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <span id="trophy-sort-label">Sort</span>
-            <Select
-              aria-labelledby="trophy-sort-label"
-              selectedKey={sortMode}
-              onSelectionChange={(key) => setSortMode(key as SortMode)}
-              variant="secondary"
-              className="min-w-40"
-            >
-              <Select.Trigger>
-                <Select.Value />
-                <Select.Indicator />
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  {SORT_OPTIONS.map((option) => (
-                    <ListBox.Item key={option.id} id={option.id} textValue={option.label}>
-                      {option.label}
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
+            <div className="flex items-center gap-2">
+              <span id="trophy-sort-label">Sort priority</span>
+              <Select
+                aria-labelledby="trophy-sort-label"
+                selectedKey={sortMode}
+                onSelectionChange={(key) => setSortMode(key as SortMode)}
+                variant="secondary"
+                className="min-w-44"
+              >
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {SORT_OPTIONS.map((option) => (
+                      <ListBox.Item key={option.id} id={option.id} textValue={option.label}>
+                        {option.label}
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span id="trophy-earned-filter-label">Status</span>
+              <Select
+                aria-labelledby="trophy-earned-filter-label"
+                selectedKey={earnedFilter}
+                onSelectionChange={(key) => setEarnedFilter(key as EarnedFilter)}
+                variant="secondary"
+                className="min-w-36"
+              >
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {EARNED_FILTER_OPTIONS.map((option) => (
+                      <ListBox.Item key={option.id} id={option.id} textValue={option.label}>
+                        {option.label}
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </div>
           </div>
         </div>
       </section>
 
       <section className="flex flex-col gap-3" aria-label="Trophies">
+        {trophies.length === 0 && (
+          <p className="rounded-xl border border-border bg-surface p-5 text-sm text-muted">
+            No trophies match this status filter.
+          </p>
+        )}
         {trophies.map((trophy, index) => (
           <article
             key={`${trophy.trophy_id ?? index}-${trophy.title}`}
@@ -253,6 +322,11 @@ export function GameDetailPage() {
                 >
                   {trophy.grade}
                 </span>
+                {trophy.is_dlc && (
+                  <span className="rounded-full border border-accent/60 px-2 py-0.5 text-[11px] font-medium text-accent">
+                    DLC
+                  </span>
+                )}
               </div>
               {trophy.description && (
                 <p className="mt-1 text-sm text-muted">{trophy.description}</p>
