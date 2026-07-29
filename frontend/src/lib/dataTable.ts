@@ -6,12 +6,22 @@ export interface DataRow extends Trophy {
   parsedDate: Date | null
 }
 
-/** Attaches a (possibly null) parsed Date to every trophy, without dropping unparseable rows. */
+/**
+ * Attaches a (possibly null) parsed Date to every trophy and sorts newest first.
+ * Unparseable timestamps are retained at the end of the table.
+ */
 export function toDataRows(trophies: Trophy[]): DataRow[] {
-  return trophies.map((trophy) => ({
-    ...trophy,
-    parsedDate: parseTrophyTimestamp(trophy.timestamp),
-  }))
+  return trophies
+    .map((trophy) => ({
+      ...trophy,
+      parsedDate: parseTrophyTimestamp(trophy.timestamp),
+    }))
+    .sort((a, b) => {
+      if (!a.parsedDate && !b.parsedDate) return 0
+      if (!a.parsedDate) return 1
+      if (!b.parsedDate) return -1
+      return b.parsedDate.getTime() - a.parsedDate.getTime()
+    })
 }
 
 export const ALL_GRADES: TrophyGrade[] = ['Platinum', 'Gold', 'Silver', 'Bronze']

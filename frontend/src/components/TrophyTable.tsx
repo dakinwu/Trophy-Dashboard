@@ -17,7 +17,9 @@ export function TrophyTable({ rows }: { rows: DataRow[] }) {
           <tr className="text-left text-xs uppercase tracking-wide text-muted">
             <th className="px-3 py-2">Game</th>
             <th className="px-3 py-2">Trophy</th>
-            <th className="px-3 py-2">Date</th>
+            <th className="px-3 py-2" title="Sorted by newest earned first">
+              Earned ↓
+            </th>
             <th className="px-3 py-2">Grade</th>
             <th className="px-3 py-2">Rarity</th>
           </tr>
