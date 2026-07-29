@@ -15,7 +15,7 @@ import logging
 import re
 import unicodedata
 from difflib import SequenceMatcher
-from typing import Callable
+from typing import Callable, TypedDict
 
 from app.config import settings
 from app.models import ProfileData, ProfileSummary, Trophy, TrophyCounts
@@ -26,6 +26,13 @@ _GRADE_NAMES = {"PLATINUM": "Platinum", "GOLD": "Gold", "SILVER": "Silver", "BRO
 _GRADE_KEYS = ("platinum", "gold", "silver", "bronze")
 _TITLE_STATS_TTL = 6 * 3600
 _ROMAN_NUMERAL = re.compile(r"^(?:x{0,3})(?:ix|iv|v?i{0,3})$")
+
+
+class _PlaytimeEntry(TypedDict):
+    name: str
+    seconds: int
+    platform: str | None
+    title_id: str | None
 
 
 def _grade_name(trophy_type) -> str:
@@ -96,64 +103,144 @@ def _game_name_score(left: str, right: str) -> float:
     return SequenceMatcher(None, left_normalised, right_normalised).ratio()
 
 
-def _match_playtime_titles(
-    playtime_by_stats_name: dict[str, int],
-    trophy_title_names: list[str],
-) -> dict[str, int]:
-    """Key title-stats playtime by trophy-list names using conservative fuzzy matching."""
-    matched: dict[str, int] = {}
-    candidates = list(playtime_by_stats_name.items())
+def _stats_platform(stat) -> str | None:
+    category = getattr(stat, "category", None)
+    raw_category = str(getattr(category, "value", category) or "").casefold()
+    if raw_category == "ps5_native_game":
+        return "PS5"
+    if raw_category == "ps4_game":
+        return "PS4"
 
-    for trophy_title in trophy_title_names:
+    title_id = str(getattr(stat, "title_id", None) or "").upper()
+    if title_id.startswith("PPSA"):
+        return "PS5"
+    if title_id.startswith("CUSA"):
+        return "PS4"
+    return None
+
+
+def _trophy_title_platform(title) -> str | None:
+    platforms = {
+        str(getattr(platform, "value", platform)).upper()
+        for platform in getattr(title, "title_platform", [])
+    }
+    console_platforms = platforms.intersection({"PS3", "PS4", "PS5"})
+    if len(console_platforms) == 1:
+        return next(iter(console_platforms))
+    return None
+
+
+def _display_title_names(titles: list) -> list[str]:
+    """Disambiguate same-name trophy lists from different console platforms."""
+    grouped: dict[str, list[int]] = {}
+    for index, title in enumerate(titles):
+        grouped.setdefault(_normalise_game_name(title.title_name), []).append(index)
+
+    names = [title.title_name for title in titles]
+    for indexes in grouped.values():
+        platforms = {_trophy_title_platform(titles[index]) for index in indexes}
+        platforms.discard(None)
+        if len(platforms) < 2:
+            continue
+        for index in indexes:
+            platform = _trophy_title_platform(titles[index])
+            if platform and not re.search(
+                rf"\({re.escape(platform)}\)\s*$",
+                names[index],
+                flags=re.IGNORECASE,
+            ):
+                names[index] = f"{names[index]} ({platform})"
+    return names
+
+
+def _match_playtime_titles(
+    playtime_entries: list[_PlaytimeEntry],
+    trophy_titles: list[tuple[str, str | None]],
+) -> dict[str, int]:
+    """Key title-stats playtime by trophy-list names and console platform."""
+    matched: dict[str, int] = {}
+
+    for trophy_title, trophy_platform in trophy_titles:
+        candidates = playtime_entries
+        if trophy_platform:
+            same_platform = [
+                entry
+                for entry in candidates
+                if entry["platform"] == trophy_platform
+            ]
+            unknown_platform = [
+                entry
+                for entry in candidates
+                if entry["platform"] is None
+            ]
+            candidates = same_platform or unknown_platform
+
         ranked = sorted(
             (
-                (_game_name_score(trophy_title, stats_title), seconds)
-                for stats_title, seconds in candidates
+                (_game_name_score(trophy_title, entry["name"]), entry)
+                for entry in candidates
             ),
+            key=lambda candidate: candidate[0],
             reverse=True,
         )
         if not ranked:
             continue
-        best_score, best_seconds = ranked[0]
+        best_score, best_entry = ranked[0]
         runner_up = ranked[1][0] if len(ranked) > 1 else 0.0
         if best_score >= 0.78 and (
             best_score >= 0.99 or best_score - runner_up >= 0.08
         ):
-            matched[trophy_title] = best_seconds
+            matched[trophy_title] = best_entry["seconds"]
 
     return matched
 
 
 def _title_stats_cache_key(online_id: str) -> str:
     digest = hashlib.sha256(online_id.casefold().encode("utf-8")).hexdigest()
-    return f"psn_title_stats/{digest}"
+    return f"psn_title_stats_v2/{digest}"
 
 
-def _playtime_from_title_stats(me, online_id: str, cache) -> dict[str, int]:
-    """Fetch title stats once per short TTL and return name -> seconds."""
+def _playtime_from_title_stats(
+    me,
+    online_id: str,
+    cache,
+) -> list[_PlaytimeEntry]:
+    """Fetch title stats once per short TTL without collapsing cross-gen titles."""
     key = _title_stats_cache_key(online_id)
     if cache is not None:
         cached = cache.load(key, _TITLE_STATS_TTL)
         if cached is not None:
-            return {
-                name: int(seconds)
-                for name, seconds in cached.get("playtime_seconds", {}).items()
-            }
+            return [
+                {
+                    "name": str(entry["name"]),
+                    "seconds": int(entry["seconds"]),
+                    "platform": entry.get("platform"),
+                    "title_id": entry.get("title_id"),
+                }
+                for entry in cached.get("entries", [])
+            ]
 
-    playtime_seconds: dict[str, int] = {}
+    entries: list[_PlaytimeEntry] = []
     try:
         for stat in me.title_stats():
             duration = getattr(stat, "play_duration", None)
             name = getattr(stat, "name", None)
             if duration is not None and name:
-                playtime_seconds[name] = int(duration.total_seconds())
+                entries.append(
+                    {
+                        "name": name,
+                        "seconds": int(duration.total_seconds()),
+                        "platform": _stats_platform(stat),
+                        "title_id": getattr(stat, "title_id", None),
+                    }
+                )
     except Exception as exc:
         logger.info("title_stats unavailable: %s", exc)
-        return {}
+        return []
 
     if cache is not None:
-        cache.save(key, {"playtime_seconds": playtime_seconds})
-    return playtime_seconds
+        cache.save(key, {"entries": entries})
+    return entries
 
 
 def _fetch_title_trophies(me, title):
@@ -274,9 +361,13 @@ def build_profile_from_psn(
     if max_titles is not None:
         titles = titles[:max_titles]
     total_titles = len(titles)
+    display_title_names = _display_title_names(titles)
     playtime_seconds = _match_playtime_titles(
         raw_playtime_seconds,
-        [title.title_name for title in titles],
+        [
+            (display_title_names[index], _trophy_title_platform(title))
+            for index, title in enumerate(titles)
+        ],
     )
 
     counts = TrophyCounts()
@@ -295,6 +386,7 @@ def build_profile_from_psn(
             )
         else:
             for e in earned:
+                e = {**e, "game": display_title_names[idx]}
                 key = e["grade"].lower()
                 if key in _GRADE_KEYS:
                     setattr(counts, key, getattr(counts, key) + 1)
@@ -316,7 +408,9 @@ def build_profile_from_psn(
         return None
 
     if raw_playtime_seconds:
-        stats["Playtime"] = _format_playtime(sum(raw_playtime_seconds.values()))
+        stats["Playtime"] = _format_playtime(
+            sum(entry["seconds"] for entry in raw_playtime_seconds)
+        )
     stats["Source"] = "PSN API"
 
     return ProfileData(

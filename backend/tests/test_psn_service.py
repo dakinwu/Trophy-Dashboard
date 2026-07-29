@@ -56,18 +56,71 @@ class FakeMe:
 
 def test_match_playtime_titles_normalises_platform_suffixes():
     result = psn_service._match_playtime_titles(
-        {"TUNIC": 45_000},
-        ["TUNIC™ (PS5)"],
+        [
+            {
+                "name": "TUNIC",
+                "seconds": 45_000,
+                "platform": "PS5",
+                "title_id": "PPSA01234_00",
+            }
+        ],
+        [("TUNIC™ (PS5)", "PS5")],
     )
     assert result == {"TUNIC™ (PS5)": 45_000}
 
 
 def test_match_playtime_titles_rejects_different_numbered_sequel():
     result = psn_service._match_playtime_titles(
-        {"Resident Evil 3": 10_000},
-        ["Resident Evil 2"],
+        [
+            {
+                "name": "Resident Evil 3",
+                "seconds": 10_000,
+                "platform": "PS5",
+                "title_id": "PPSA01234_00",
+            }
+        ],
+        [("Resident Evil 2", "PS5")],
     )
     assert result == {}
+
+
+def test_match_playtime_titles_keeps_same_name_cross_gen_versions_separate():
+    ps5 = SimpleNamespace(
+        title_name="Resident Evil Village",
+        title_platform=[SimpleNamespace(value="PS5")],
+    )
+    ps4 = SimpleNamespace(
+        title_name="Resident Evil Village",
+        title_platform=[SimpleNamespace(value="PS4")],
+    )
+    display_names = psn_service._display_title_names([ps5, ps4])
+
+    result = psn_service._match_playtime_titles(
+        [
+            {
+                "name": "Resident Evil Village",
+                "seconds": 66_449,
+                "platform": "PS5",
+                "title_id": "PPSA01559_00",
+            },
+            {
+                "name": "Resident Evil Village",
+                "seconds": 3_834,
+                "platform": "PS4",
+                "title_id": "CUSA18045_00",
+            },
+        ],
+        list(zip(display_names, ["PS5", "PS4"], strict=True)),
+    )
+
+    assert display_names == [
+        "Resident Evil Village (PS5)",
+        "Resident Evil Village (PS4)",
+    ]
+    assert result == {
+        "Resident Evil Village (PS5)": 66_449,
+        "Resident Evil Village (PS4)": 3_834,
+    }
 
 
 def test_build_profile_caches_title_stats_and_trophies(monkeypatch, tmp_path):
