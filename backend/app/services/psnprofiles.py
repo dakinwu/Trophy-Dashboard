@@ -14,6 +14,19 @@ from app.models import ProfileData, ProfileSummary, TrophyCounts, Trophy
 logger = logging.getLogger(__name__)
 
 
+def _platforms_from_game_name(name: str) -> list[str]:
+    """Best-effort fallback because PSNProfiles' trophy log omits platform data."""
+    match = re.search(
+        r"\((PS3|PS4|PS5|PS\s*VITA|PSVITA)\)\s*$",
+        name,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return ["UNKNOWN"]
+    platform = match.group(1).upper().replace(" ", "")
+    return [platform]
+
+
 def _integer(text: str) -> int:
     digits = re.sub(r"[^\d]", "", text)
     return int(digits) if digits else 0
@@ -98,6 +111,9 @@ def parse_trophy_log_page(html_content: str) -> list[Trophy]:
             trophies.append(
                 Trophy(
                     game=game_img["title"] if game_img else "N/A",
+                    platforms=_platforms_from_game_name(
+                        game_img["title"] if game_img else ""
+                    ),
                     icon_url=trophy_img["src"] if trophy_img else "N/A",
                     title=title_anchor.text.strip() if title_anchor else "N/A",
                     timestamp=f"{date_str} {time_str}".strip(),

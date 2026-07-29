@@ -5,13 +5,14 @@ import { formatPlaytime } from '../lib/games'
 import { GRADE_COLOR_VAR } from '../lib/trophy'
 import { useHltb, usePsnprofilesGuide } from '../lib/queries'
 import { ExternalLinks } from './ExternalLinks'
+import { PlatformLogos } from './PlatformLogos'
 
 const GRADE_ORDER: TrophyGrade[] = ['Platinum', 'Gold', 'Silver', 'Bronze']
 
 export function GameCard({ summary }: { summary: GameSummary }) {
   const [guideRequested, setGuideRequested] = useState(false)
-  const hltb = useHltb(summary.game)
-  const psnprofilesGuide = usePsnprofilesGuide(summary.game, guideRequested)
+  const hltb = useHltb(summary.displayName)
+  const psnprofilesGuide = usePsnprofilesGuide(summary.displayName, guideRequested)
   const guide = psnprofilesGuide.data
 
   return (
@@ -24,9 +25,15 @@ export function GameCard({ summary }: { summary: GameSummary }) {
           className="h-14 w-14 shrink-0 rounded-lg border border-border object-cover"
         />
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-semibold text-text" title={summary.game}>
-            {summary.game}
-          </h3>
+          <div className="flex items-start gap-2">
+            <h3
+              className="min-w-0 flex-1 truncate text-sm font-semibold text-text"
+              title={summary.displayName}
+            >
+              {summary.displayName}
+            </h3>
+            <PlatformLogos platforms={summary.platforms} />
+          </div>
           <p className="text-xs text-muted">
             {summary.totalEarned} trophies
             {summary.hasPlatinum && <span className="ml-1 text-platinum">· Platinum</span>}
@@ -108,7 +115,7 @@ export function GameCard({ summary }: { summary: GameSummary }) {
 
       <div className="flex flex-col gap-1.5">
         <span className="text-[10px] font-medium uppercase tracking-wide text-muted">Guides &amp; info</span>
-        <ExternalLinks game={summary.game} psnprofilesGuideUrl={guide?.guide_url} />
+        <ExternalLinks game={summary.displayName} psnprofilesGuideUrl={guide?.guide_url} />
       </div>
     </div>
   )

@@ -24,9 +24,11 @@ export interface ProfileSummary {
 
 export type TrophyGrade = 'Platinum' | 'Gold' | 'Silver' | 'Bronze'
 export type RaritySource = 'psn' | 'psnprofiles' | 'unknown'
+export type Platform = 'PS3' | 'PS4' | 'PS5' | 'PSVITA' | 'PSPC' | 'UNKNOWN'
 
 export interface Trophy {
   game: string
+  platforms?: Platform[]
   icon_url: string
   title: string
   /** Raw string, e.g. "6th Jul 2024 10:11:23 pm" — not parsed here. */

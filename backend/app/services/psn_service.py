@@ -120,14 +120,22 @@ def _stats_platform(stat) -> str | None:
 
 
 def _trophy_title_platform(title) -> str | None:
+    console_platforms = set(_trophy_title_platforms(title)).intersection(
+        {"PS3", "PS4", "PS5"}
+    )
+    if len(console_platforms) == 1:
+        return next(iter(console_platforms))
+    return None
+
+
+def _trophy_title_platforms(title) -> list[str]:
     platforms = {
         str(getattr(platform, "value", platform)).upper()
         for platform in getattr(title, "title_platform", [])
     }
-    console_platforms = platforms.intersection({"PS3", "PS4", "PS5"})
-    if len(console_platforms) == 1:
-        return next(iter(console_platforms))
-    return None
+    supported = {"PS3", "PS4", "PS5", "PSVITA", "PSPC"}
+    order = {"PS5": 0, "PS4": 1, "PS3": 2, "PSVITA": 3, "PSPC": 4}
+    return sorted(platforms.intersection(supported), key=order.__getitem__)
 
 
 def _display_title_names(titles: list) -> list[str]:
@@ -386,7 +394,11 @@ def build_profile_from_psn(
             )
         else:
             for e in earned:
-                e = {**e, "game": display_title_names[idx]}
+                e = {
+                    **e,
+                    "game": display_title_names[idx],
+                    "platforms": _trophy_title_platforms(title) or ["UNKNOWN"],
+                }
                 key = e["grade"].lower()
                 if key in _GRADE_KEYS:
                     setattr(counts, key, getattr(counts, key) + 1)

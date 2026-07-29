@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+Platform = Literal["PS3", "PS4", "PS5", "PSVITA", "PSPC", "UNKNOWN"]
+
 
 class TrophyCounts(BaseModel):
     total: int = 0
@@ -20,6 +22,7 @@ class ProfileSummary(BaseModel):
 
 class Trophy(BaseModel):
     game: str
+    platforms: list[Platform] = Field(default_factory=lambda: ["UNKNOWN"])
     icon_url: str
     title: str
     timestamp: str
