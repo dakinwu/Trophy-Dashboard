@@ -1,3 +1,4 @@
+import { ListBox, Select } from '@heroui/react'
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ErrorState } from '../components/ErrorState'
@@ -19,6 +20,13 @@ const GRADE_PRIORITY: Record<TrophyGrade, number> = {
   Silver: 2,
   Bronze: 3,
 }
+
+const SORT_OPTIONS: Array<{ id: SortMode; label: string }> = [
+  { id: 'earned', label: 'Earned time' },
+  { id: 'order', label: 'Trophy order' },
+  { id: 'rarity', label: 'Official rarity' },
+  { id: 'grade', label: 'Grade' },
+]
 
 function normaliseTrophyTitle(title: string): string {
   return title
@@ -190,19 +198,31 @@ export function GameDetailPage() {
               </span>
             )}
           </div>
-          <label className="flex items-center gap-2 text-xs text-muted">
-            Sort
-            <select
-              value={sortMode}
-              onChange={(event) => setSortMode(event.target.value as SortMode)}
-              className="rounded-lg border border-border bg-bg px-2 py-1.5 text-sm text-text focus:border-accent focus:outline-none"
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <span id="trophy-sort-label">Sort</span>
+            <Select
+              aria-labelledby="trophy-sort-label"
+              selectedKey={sortMode}
+              onSelectionChange={(key) => setSortMode(key as SortMode)}
+              variant="secondary"
+              className="min-w-40"
             >
-              <option value="earned">Earned time</option>
-              <option value="order">Trophy order</option>
-              <option value="rarity">Official rarity</option>
-              <option value="grade">Grade</option>
-            </select>
-          </label>
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {SORT_OPTIONS.map((option) => (
+                    <ListBox.Item key={option.id} id={option.id} textValue={option.label}>
+                      {option.label}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </div>
         </div>
       </section>
 

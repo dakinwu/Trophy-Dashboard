@@ -1,3 +1,4 @@
+import { Button } from '@heroui/react'
 import { useMemo, useState } from 'react'
 import type { ProfileSummary, PsnprofilesStats } from '../lib/api'
 import { usePsnprofilesStats } from '../lib/queries'
@@ -40,13 +41,15 @@ export function PsnprofilesRankings({ summary }: { summary: ProfileSummary }) {
         </div>
 
         {!rankings && !requested && (
-          <button
+          <Button
             type="button"
-            onClick={() => setRequested(true)}
-            className="rounded-lg border border-border bg-bg/40 px-3 py-1.5 text-xs font-medium text-muted transition hover:border-accent hover:text-accent"
+            onPress={() => setRequested(true)}
+            size="sm"
+            variant="outline"
+            className="text-xs"
           >
             Load rankings
-          </button>
+          </Button>
         )}
       </div>
 
@@ -84,13 +87,15 @@ export function PsnprofilesRankings({ summary }: { summary: ProfileSummary }) {
           <p className="text-sm text-muted">
             Rankings unavailable. The profile must be public and have a country on PSNProfiles.
           </p>
-          <button
+          <Button
             type="button"
-            onClick={() => void query.refetch()}
-            className="text-xs font-medium text-accent underline underline-offset-2"
+            onPress={() => void query.refetch()}
+            size="sm"
+            variant="ghost"
+            className="text-xs text-accent"
           >
             Retry
-          </button>
+          </Button>
         </div>
       )}
     </section>

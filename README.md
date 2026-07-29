@@ -14,8 +14,9 @@ visible nodriver-controlled Chrome session.
 - **`backend/`** — FastAPI. PSN official API (PSNAWP) as the primary source for the
   token owner + a PSNProfiles scraper fallback, a 24-hour file cache, and REST + SSE
   endpoints.
-- **`frontend/`** — Vite + React + TypeScript + Tailwind ("Trophy Gold" dark theme).
-  Pages: Overview, Games, Timeline, Milestones, Data.
+- **`frontend/`** — Vite + React + TypeScript + Tailwind CSS v4 + HeroUI v3
+  ("Trophy Gold" dark theme), with Recharts for data visualization. Pages:
+  Overview, Games, Timeline, Milestones, Data.
 
 ## Setup (first time)
 

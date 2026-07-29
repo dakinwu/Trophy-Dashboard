@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@heroui/styles";
 
 /*
  * Trophy Gold theme.
@@ -20,6 +21,29 @@
   --gold: #ffd700;
   --silver: #c0c0c0;
   --bronze: #cd7f32;
+
+  /* HeroUI v3 semantic tokens, mapped to the existing Trophy Gold palette. */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --surface-foreground: var(--text);
+  --surface-secondary: #2b2417;
+  --surface-secondary-foreground: var(--text);
+  --surface-tertiary: #342b1a;
+  --surface-tertiary-foreground: var(--text);
+  --overlay: #2b2417;
+  --overlay-foreground: var(--text);
+  --default: #302819;
+  --default-foreground: var(--text);
+  --accent-foreground: var(--bg);
+  --field-background: #19150e;
+  --field-foreground: var(--text);
+  --field-placeholder: var(--muted);
+  --field-border: var(--border);
+  --separator: var(--border);
+  --focus: var(--accent);
+  --link: var(--accent);
+  --field-border-width: 1px;
+  --radius: 0.5rem;
 
   color-scheme: dark;
 }

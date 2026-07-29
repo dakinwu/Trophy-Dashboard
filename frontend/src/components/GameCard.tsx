@@ -1,3 +1,4 @@
+import { Button } from '@heroui/react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { TrophyGrade } from '../lib/api'
@@ -97,25 +98,29 @@ export function GameCard({ summary, username }: { summary: GameSummary; username
       )}
 
       {!guideRequested && (
-        <button
+        <Button
           type="button"
-          onClick={() => setGuideRequested(true)}
-          className="self-start text-xs font-medium text-muted underline decoration-border underline-offset-2 transition hover:text-accent"
+          onPress={() => setGuideRequested(true)}
+          size="sm"
+          variant="ghost"
+          className="self-start px-2 text-xs text-muted"
         >
           Load PSNProfiles guide details
-        </button>
+        </Button>
       )}
       {guideRequested && psnprofilesGuide.isFetching && (
         <p className="text-xs text-muted">Loading PSNProfiles guide…</p>
       )}
       {guideRequested && !psnprofilesGuide.isFetching && psnprofilesGuide.isSuccess && !guide && (
-        <button
+        <Button
           type="button"
-          onClick={() => void psnprofilesGuide.refetch()}
-          className="self-start text-xs font-medium text-muted underline decoration-border underline-offset-2 transition hover:text-accent"
+          onPress={() => void psnprofilesGuide.refetch()}
+          size="sm"
+          variant="ghost"
+          className="self-start px-2 text-xs text-muted"
         >
           Guide unavailable · retry
-        </button>
+        </Button>
       )}
 
       <Link

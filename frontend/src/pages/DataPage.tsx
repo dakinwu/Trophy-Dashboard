@@ -1,3 +1,4 @@
+import { Button } from '@heroui/react'
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ProfileStateGate } from '../components/ProfileStateGate'
@@ -39,14 +40,15 @@ function DataContent({ username, trophyLog }: { username: string; trophyLog: Tro
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-text">Trophy Data</h1>
-        <button
+        <Button
           type="button"
-          onClick={handleDownload}
-          disabled={filteredRows.length === 0}
-          className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-bg transition hover:bg-accent-bright disabled:cursor-not-allowed disabled:opacity-50"
+          onPress={handleDownload}
+          isDisabled={filteredRows.length === 0}
+          size="sm"
+          variant="primary"
         >
           Download CSV
-        </button>
+        </Button>
       </div>
 
       <TrophyFilters filters={filters} onChange={setFilters} />

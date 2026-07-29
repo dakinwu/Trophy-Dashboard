@@ -1,3 +1,4 @@
+import { Button, Input } from '@heroui/react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, NavLink, useMatch, useNavigate } from 'react-router-dom'
 import { useRefreshProfile } from '../lib/queries'
@@ -45,19 +46,23 @@ export function TopNav() {
         </Link>
 
         <form onSubmit={handleSubmit} className="flex min-w-[200px] flex-1 items-center gap-2">
-          <input
+          <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="PSN ID..."
             aria-label="PSN ID"
-            className="w-full flex-1 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text placeholder:text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            variant="secondary"
+            fullWidth
+            className="min-w-0 flex-1"
           />
-          <button
+          <Button
             type="submit"
-            className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-bg transition hover:bg-accent-bright"
+            size="sm"
+            variant="primary"
+            className="shrink-0"
           >
             Analyze
-          </button>
+          </Button>
         </form>
 
         <nav className="flex flex-wrap items-center gap-1 text-sm">
@@ -91,15 +96,18 @@ export function TopNav() {
         </nav>
 
         {username && (
-          <button
+          <Button
             type="button"
-            onClick={refresh}
-            disabled={refreshing}
-            title="Re-fetch the latest trophies from PSN (bypass the cache)"
-            className="shrink-0 rounded-md border border-border px-3 py-1.5 text-sm text-muted transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+            onPress={refresh}
+            isDisabled={refreshing}
+            isPending={refreshing}
+            size="sm"
+            variant="outline"
+            aria-label="Refresh trophies from PSN and bypass the cache"
+            className="shrink-0"
           >
             {refreshing ? 'Refreshing…' : '🔄 Refresh'}
-          </button>
+          </Button>
         )}
       </div>
     </header>
