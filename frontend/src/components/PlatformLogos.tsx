@@ -5,13 +5,50 @@ import playstation5Logo from 'simple-icons/icons/playstation5.svg'
 import playstationVitaLogo from 'simple-icons/icons/playstationvita.svg'
 import type { Platform } from '../lib/api'
 
-const PLATFORM_META: Record<Platform, { label: string; logo: string }> = {
-  PS3: { label: 'PlayStation 3', logo: playstation3Logo },
-  PS4: { label: 'PlayStation 4', logo: playstation4Logo },
-  PS5: { label: 'PlayStation 5', logo: playstation5Logo },
-  PSVITA: { label: 'PlayStation Vita', logo: playstationVitaLogo },
-  PSPC: { label: 'PlayStation PC', logo: playstationLogo },
-  UNKNOWN: { label: 'PlayStation platform unknown', logo: playstationLogo },
+interface PlatformMeta {
+  label: string
+  logo: string
+  badgeClass: string
+  logoClass: string
+}
+
+const PLATFORM_META: Record<Platform, PlatformMeta> = {
+  PS3: {
+    label: 'PlayStation 3',
+    logo: playstation3Logo,
+    badgeClass: 'border-white/20 bg-black',
+    logoClass: 'brightness-0 invert',
+  },
+  PS4: {
+    label: 'PlayStation 4',
+    logo: playstation4Logo,
+    badgeClass: 'border-[#1681d8] bg-[#006fcd]',
+    logoClass: 'brightness-0 invert',
+  },
+  PS5: {
+    label: 'PlayStation 5',
+    logo: playstation5Logo,
+    badgeClass: 'border-white/80 bg-white',
+    logoClass: 'brightness-0',
+  },
+  PSVITA: {
+    label: 'PlayStation Vita',
+    logo: playstationVitaLogo,
+    badgeClass: 'border-[#2456a6] bg-[#003791]',
+    logoClass: 'brightness-0 invert',
+  },
+  PSPC: {
+    label: 'PlayStation PC',
+    logo: playstationLogo,
+    badgeClass: 'border-white/30 bg-slate-800',
+    logoClass: 'brightness-0 invert',
+  },
+  UNKNOWN: {
+    label: 'PlayStation platform unknown',
+    logo: playstationLogo,
+    badgeClass: 'border-white/20 bg-slate-700',
+    logoClass: 'brightness-0 invert',
+  },
 }
 
 export function PlatformLogos({ platforms }: { platforms: Platform[] }) {
@@ -27,12 +64,12 @@ export function PlatformLogos({ platforms }: { platforms: Platform[] }) {
             key={platform}
             title={meta.label}
             aria-label={meta.label}
-            className="flex h-6 min-w-10 items-center justify-center rounded-md border border-border bg-text px-1.5"
+            className={`flex h-7 min-w-12 items-center justify-center rounded-md border px-2 shadow-sm ${meta.badgeClass}`}
           >
             <img
               src={meta.logo}
               alt={meta.label}
-              className="h-4 w-10 object-contain"
+              className={`h-5 w-12 object-contain ${meta.logoClass}`}
             />
           </span>
         )
