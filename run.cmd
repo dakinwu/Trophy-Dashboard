@@ -13,7 +13,7 @@ if not exist "backend\.venv\Scripts\python.exe" (
   exit /b 1
 )
 
-start "Trophy Hunter - backend"  cmd /k "cd backend && .venv\Scripts\python.exe -m uvicorn app.main:app --port 8000"
+start "Trophy Hunter - backend"  cmd /k "cd backend && .venv\Scripts\python.exe -m uvicorn app.main:app --reload --reload-dir app --port 8000"
 start "Trophy Hunter - frontend" cmd /k "cd frontend && npm run dev"
 
 echo Starting servers... a browser tab will open in a few seconds.

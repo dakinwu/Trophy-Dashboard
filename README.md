@@ -45,7 +45,7 @@ visible nodriver-controlled Chrome session.
   dashboard in the browser. Close those two windows to stop the app.
 - From a terminal instead: `run.cmd`, or `./run.ps1` (PowerShell).
 - **Manual:**
-  - Backend: `cd backend; .venv\Scripts\python.exe -m uvicorn app.main:app --port 8000`
+  - Backend: `cd backend; .venv\Scripts\python.exe -m uvicorn app.main:app --reload --reload-dir app --port 8000`
   - Frontend: `cd frontend; npm run dev`
 - Then open **http://localhost:5173** and enter your PSN ID.
 
