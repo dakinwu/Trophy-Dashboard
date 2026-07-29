@@ -100,10 +100,21 @@ def parse_game_search(
 def parse_trophy_page(html: str) -> list[dict[str, str | int | None]]:
     """Extract trophy names and tracked-player rarity from a game page."""
     soup = BeautifulSoup(html, "html.parser")
+    # PSNProfiles may repeat the platinum trophy URL in a "Platinum Club"
+    # sidebar before the real trophy table. Restrict parsing to the table when
+    # present so that duplicate cannot shadow the actual row and its rarity.
+    trophy_root = next(
+        (
+            table
+            for table in soup.select("table.zebra")
+            if table.select_one('a[href*="/trophy/"]')
+        ),
+        soup,
+    )
     trophies: list[dict[str, str | int | None]] = []
     seen_urls: set[str] = set()
 
-    for anchor in soup.select("a[href]"):
+    for anchor in trophy_root.select("a[href]"):
         absolute_url = urljoin(PSNPROFILES_BASE_URL, anchor.get("href", ""))
         if absolute_url in seen_urls:
             continue
@@ -117,7 +128,16 @@ def parse_trophy_page(html: str) -> list[dict[str, str | int | None]]:
         if container is None:
             continue
 
-        title_node = container.select_one("a.title")
+        title_node = next(
+            (
+                node
+                for node in container.select('a[href*="/trophy/"]')
+                if urljoin(PSNPROFILES_BASE_URL, node.get("href", ""))
+                == absolute_url
+                and node.get_text(" ", strip=True)
+            ),
+            None,
+        )
         if title_node is None:
             title_node = next(
                 (
@@ -147,7 +167,11 @@ def parse_trophy_page(html: str) -> list[dict[str, str | int | None]]:
         trophies.append(
             {
                 "trophy_id": (
-                    int(trophy_id_match.group(1)) if trophy_id_match else None
+                    # PSNProfiles URL positions are one-based; official PSN
+                    # trophy IDs are zero-based.
+                    int(trophy_id_match.group(1)) - 1
+                    if trophy_id_match
+                    else None
                 ),
                 "title": title,
                 "psnprofiles_rarity_percent": percentage,
@@ -176,7 +200,9 @@ def get_psnprofiles_trophies(
     cache = cache or FileCache(settings.cache_dir)
     cache_seed = f"{game.casefold()}:{(platform or '').upper()}"
     digest = hashlib.sha256(cache_seed.encode("utf-8")).hexdigest()
-    key = f"psnprofiles_trophies_v1/{digest}"
+    # v2 invalidates entries parsed before platinum/sidebar filtering and
+    # one-based PSNProfiles positions were corrected to official trophy IDs.
+    key = f"psnprofiles_trophies_v2/{digest}"
     cached = cache.load(key, _TROPHY_LIST_TTL)
     if cached is not None:
         return cached or None

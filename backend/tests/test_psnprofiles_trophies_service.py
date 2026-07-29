@@ -34,10 +34,11 @@ def test_parse_game_search_uses_requested_platform():
 def test_parse_trophy_page_extracts_rarity():
     result = parse_trophy_page(load_fixture("psnprofiles_trophy_page.html"))
     assert len(result) == 2
-    assert result[0]["trophy_id"] == 1
+    assert result[0]["trophy_id"] == 0
     assert result[0]["title"] == "Ethan Winters"
     assert result[0]["psnprofiles_rarity_percent"] == "18.42%"
     assert result[0]["rarity_label"] == "Rare"
+    assert result[1]["trophy_id"] == 1
 
 
 def test_get_psnprofiles_trophies_caches_success(tmp_path):

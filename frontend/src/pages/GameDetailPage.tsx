@@ -50,8 +50,8 @@ function mergePsnprofilesRarity(
   )
   return trophies.map((trophy) => {
     const match =
-      (trophy.trophy_id != null ? byId.get(trophy.trophy_id) : undefined)
-      ?? byTitle.get(normaliseTrophyTitle(trophy.title))
+      byTitle.get(normaliseTrophyTitle(trophy.title))
+      ?? (trophy.trophy_id != null ? byId.get(trophy.trophy_id) : undefined)
     if (!match) return trophy
     return {
       ...trophy,
