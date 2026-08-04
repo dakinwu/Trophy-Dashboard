@@ -31,3 +31,11 @@ class FileCache:
         self._path(key).write_text(
             json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
         )
+
+    def modified_at(self, key: str) -> float | None:
+        """Return the cache entry's filesystem timestamp when it exists."""
+        path = self._path(key)
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return None

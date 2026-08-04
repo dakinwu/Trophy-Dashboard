@@ -49,8 +49,19 @@ export interface Trophy {
 export interface ProfileData {
   profile_summary: ProfileSummary
   trophy_log: Trophy[]
+  platinum_games?: PlatinumGame[]
+  summary_only?: boolean
+  profile_source?: 'psn' | 'psnprofiles' | null
+  cache_status?: 'live' | 'cached' | null
+  fetched_at?: string | null
   /** Game title -> real playtime in seconds (PSN API source only). */
   game_playtime_seconds?: Record<string, number>
+}
+
+export interface PlatinumGame {
+  game: string
+  platforms: Platform[]
+  icon_url: string
 }
 
 export interface GameTrophyDetail {

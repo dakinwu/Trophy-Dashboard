@@ -29,9 +29,31 @@ def test_build_psnine_url_uses_title_parameter():
     )
 
 
-def test_parse_psnine_title_rejects_english_only_results():
-    html = '<a href="https://www.psnine.com/psngame/123">Some Game</a>'
-    assert parse_psnine_title(html) is None
+def test_get_psnine_title_resolves_confirmed_english_alias_without_request(tmp_path):
+    session = FakePSNineSession("")
+
+    assert (
+        get_psnine_title(
+            "WUCHANG: Fallen Feathers",
+            cache=FileCache(tmp_path),
+            session=session,
+        )
+        == "明末 渊虚之羽"
+    )
+    assert session.calls == 0
+
+
+def test_parse_psnine_title_accepts_psnine_english_only_results():
+    html = '<a href="https://www.psnine.com/psngame/123">Tunic</a>'
+    assert parse_psnine_title(html) == "Tunic"
+
+
+def test_parse_psnine_title_prefers_chinese_result():
+    html = """
+    <a href="https://www.psnine.com/psngame/123">English Result</a>
+    <a href="https://www.psnine.com/psngame/124">中文结果</a>
+    """
+    assert parse_psnine_title(html) == "中文结果"
 
 
 def test_get_psnine_title_caches_result(tmp_path):

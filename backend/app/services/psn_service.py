@@ -20,6 +20,7 @@ from typing import Callable, TypedDict
 from app.config import settings
 from app.models import (
     GameTrophyDetail,
+    PlatinumGame,
     ProfileData,
     ProfileSummary,
     Trophy,
@@ -89,6 +90,12 @@ def _client(npsso: str):
     from psnawp_api import PSNAWP
 
     return PSNAWP(npsso).me()
+
+
+def _public_user(npsso: str, online_id: str):
+    from psnawp_api import PSNAWP
+
+    return PSNAWP(npsso).user(online_id=online_id)
 
 
 def psn_online_id(npsso: str | None = None) -> str | None:
@@ -326,17 +333,26 @@ def _fetch_title_trophies(me, title):
 _TITLE_TROPHY_TTL = 30 * 24 * 3600
 
 
-def _title_cache_key(title) -> str:
+def _title_cache_key(title, online_id: str | None = None) -> str:
     lu = getattr(title, "last_updated_datetime", None)
     stamp = lu.isoformat() if lu is not None else "?"
-    digest = hashlib.md5(f"{title.np_communication_id}:{stamp}".encode()).hexdigest()
+    owner = f"{online_id.casefold()}:" if online_id else ""
+    digest = hashlib.md5(
+        f"{owner}{title.np_communication_id}:{stamp}".encode()
+    ).hexdigest()
     return f"psn_title_v2/{digest}"
 
 
-def _earned_trophies_for_title(me, title, cache) -> list[dict] | None:
+def _earned_trophies_for_title(
+    me,
+    title,
+    cache,
+    *,
+    online_id: str | None = None,
+) -> list[dict] | None:
     """Earned-trophy dicts for one title, cached per (title, last_updated).
     Returns None if the title's trophies couldn't be fetched at all."""
-    key = _title_cache_key(title) if cache is not None else None
+    key = _title_cache_key(title, online_id) if cache is not None else None
     if key is not None:
         cached = cache.load(key, _TITLE_TROPHY_TTL)
         if cached is not None:
@@ -471,12 +487,13 @@ def build_game_detail_from_psn(
 def build_profile_from_psn(
     npsso: str | None = None,
     *,
+    online_id: str | None = None,
     cache=None,
     on_progress: Callable[[int, int], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
     max_titles: int | None = None,
 ) -> ProfileData | None:
-    """Build ProfileData for the token owner's own account from the PSN API.
+    """Build ProfileData for the token owner or another public PSN account.
 
     Returns None if no token is configured.
     """
@@ -484,8 +501,9 @@ def build_profile_from_psn(
     if not npsso:
         return None
 
-    me = _client(npsso)
-    online_id = me.online_id
+    is_public_lookup = bool(online_id)
+    me = _public_user(npsso, online_id) if online_id else _client(npsso)
+    resolved_online_id = me.online_id
 
     stats: dict[str, str] = {}
     avatar_url: str | None = None
@@ -496,6 +514,9 @@ def build_profile_from_psn(
         level = getattr(summary, "trophy_level", None)
         if level is not None:
             stats["Level"] = str(level)
+        level_progress = getattr(summary, "progress", None)
+        if isinstance(level_progress, int) and 0 <= level_progress <= 100:
+            stats["Level Progress"] = f"{level_progress}%"
     except Exception as e:
         logger.info("trophy_summary unavailable: %s", e)
     try:
@@ -506,11 +527,26 @@ def build_profile_from_psn(
     except Exception as e:
         logger.info("avatar lookup unavailable: %s", e)
 
-    raw_playtime_seconds = _playtime_from_title_stats(me, online_id, cache)
+    # Sony exposes title playtime only for the authenticated token owner.
+    raw_playtime_seconds = (
+        []
+        if is_public_lookup
+        else _playtime_from_title_stats(me, resolved_online_id, cache)
+    )
     titles = list(me.trophy_titles())
     if max_titles is not None:
         titles = titles[:max_titles]
     total_titles = len(titles)
+    stats["Games Played"] = str(total_titles)
+    title_progress = [
+        progress
+        for title in titles
+        if isinstance((progress := getattr(title, "progress", None)), int)
+    ]
+    if title_progress:
+        stats["Completed Games"] = str(
+            sum(1 for progress in title_progress if progress == 100)
+        )
     display_title_names = _display_title_names(titles)
     playtime_seconds = _match_playtime_titles(
         raw_playtime_seconds,
@@ -527,7 +563,12 @@ def build_profile_from_psn(
     for idx, title in enumerate(titles):
         if should_stop is not None and should_stop():
             break
-        earned = _earned_trophies_for_title(me, title, cache)
+        earned = _earned_trophies_for_title(
+            me,
+            title,
+            cache,
+            online_id=resolved_online_id if is_public_lookup else None,
+        )
         if earned is None:
             errors += 1
             logger.warning(
@@ -557,7 +598,7 @@ def build_profile_from_psn(
         logger.warning(
             "PSN fetch for %s yielded 0 trophies from %d titles (%d errored); "
             "treating as throttled/failed, not caching.",
-            online_id, len(titles), errors,
+            resolved_online_id, len(titles), errors,
         )
         return None
 
@@ -569,11 +610,83 @@ def build_profile_from_psn(
 
     return ProfileData(
         profile_summary=ProfileSummary(
-            username=online_id,
+            username=resolved_online_id,
             avatar_url=avatar_url,
             total_trophies=counts,
             stats=stats,
         ),
         trophy_log=log,
         game_playtime_seconds=playtime_seconds,
+    )
+
+
+def build_public_profile_summary_from_psn(
+    online_id: str,
+    npsso: str | None = None,
+) -> ProfileData | None:
+    """Fetch a public user's totals and platinum games without per-game calls."""
+    online_id = (online_id or "").strip()
+    npsso = npsso or settings.psn_npsso
+    if not online_id or not npsso:
+        return None
+
+    user = _public_user(npsso, online_id)
+    summary = user.trophy_summary()
+    titles = list(user.trophy_titles())
+    display_names = _display_title_names(titles)
+    earned = summary.earned_trophies
+    counts = TrophyCounts(
+        platinum=int(getattr(earned, "platinum", 0) or 0),
+        gold=int(getattr(earned, "gold", 0) or 0),
+        silver=int(getattr(earned, "silver", 0) or 0),
+        bronze=int(getattr(earned, "bronze", 0) or 0),
+    )
+    counts.total = counts.platinum + counts.gold + counts.silver + counts.bronze
+
+    avatar_url: str | None = None
+    try:
+        profile = user.get_profile_legacy()
+        avatars = ((profile or {}).get("profile", {}) or {}).get("avatarUrls") or []
+        if avatars and isinstance(avatars[0], dict):
+            avatar_url = avatars[0].get("avatarUrl")
+    except Exception as exc:
+        logger.info("Public avatar lookup unavailable: %s", exc)
+
+    platinum_games = [
+        PlatinumGame(
+            game=display_names[index],
+            platforms=_trophy_title_platforms(title) or ["UNKNOWN"],
+            icon_url=getattr(title, "title_icon_url", "") or "",
+        )
+        for index, title in enumerate(titles)
+        if int(getattr(title.earned_trophies, "platinum", 0) or 0) > 0
+    ]
+
+    level_progress = getattr(summary, "progress", None)
+    stats = {
+        "Games Played": str(len(titles)),
+        "Level": str(getattr(summary, "trophy_level", "")),
+        "Source": "PSN API public summary",
+    }
+    if isinstance(level_progress, int) and 0 <= level_progress <= 100:
+        stats["Level Progress"] = f"{level_progress}%"
+    title_progress = [
+        progress
+        for title in titles
+        if isinstance((progress := getattr(title, "progress", None)), int)
+    ]
+    if title_progress:
+        stats["Completed Games"] = str(
+            sum(1 for progress in title_progress if progress == 100)
+        )
+
+    return ProfileData(
+        profile_summary=ProfileSummary(
+            username=user.online_id,
+            avatar_url=avatar_url,
+            total_trophies=counts,
+            stats=stats,
+        ),
+        platinum_games=platinum_games,
+        summary_only=True,
     )

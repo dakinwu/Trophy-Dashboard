@@ -28,6 +28,17 @@ def test_psnine_redirect_uses_simplified_chinese_name(monkeypatch):
     )
 
 
+def test_psnine_redirect_falls_back_to_non_empty_original_name(monkeypatch):
+    monkeypatch.setattr(enrich_api, "get_psnine_title", lambda game: None)
+    resp = client.get(
+        "/api/psnine",
+        params={"game": "TUNIC"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 307
+    assert resp.headers["location"] == "https://www.psnine.com/psngame?title=TUNIC"
+
+
 def test_psnprofiles_guide_returns_enrichment(monkeypatch):
     monkeypatch.setattr(
         enrich_api,

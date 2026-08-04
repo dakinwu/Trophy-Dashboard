@@ -65,8 +65,9 @@ visible nodriver-controlled Chrome session.
 - The Overview page can load PSNProfiles world and country rank on demand. These
   ranks cover public profiles tracked by PSNProfiles, not every PlayStation user,
   and successful lookups are cached for 6 hours.
-- PSNine links resolve the site's own Simplified Chinese game name on first click,
-  cache it, then open `https://www.psnine.com/psngame?title=<簡中名稱>`.
+- PSNine links resolve the site's own title on first click, preferring its
+  Simplified Chinese name and retaining English-only canonical titles such as
+  `Tunic`, then open `https://www.psnine.com/psngame?title=<站內名稱>`.
 
 ## Tests
 

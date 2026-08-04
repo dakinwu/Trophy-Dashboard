@@ -22,6 +22,13 @@ const GRADE_PRIORITY: Record<TrophyGrade, number> = {
   Bronze: 3,
 }
 
+const GRADE_SYMBOL: Record<TrophyGrade, string> = {
+  Platinum: '✦',
+  Gold: '★',
+  Silver: '◆',
+  Bronze: '●',
+}
+
 const SORT_OPTIONS: Array<{ id: SortMode; label: string }> = [
   { id: 'order', label: 'Trophy order' },
   { id: 'officialRarity', label: 'Official rarity' },
@@ -301,25 +308,30 @@ export function GameDetailPage() {
             key={`${trophy.trophy_id ?? index}-${trophy.title}`}
             className={[
               'grid gap-4 rounded-xl border border-border bg-surface p-4 sm:grid-cols-[72px_minmax(0,1fr)_minmax(250px,auto)] sm:items-center',
-              trophy.earned === false ? 'opacity-65' : '',
             ].join(' ')}
           >
             <img
               src={trophy.icon_url}
               alt=""
               loading="lazy"
-              className="h-16 w-16 rounded-lg border border-border object-cover"
+              className="h-16 w-16 rounded-lg border-2 object-cover"
+              style={{ borderColor: GRADE_COLOR_VAR[trophy.grade] }}
             />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-semibold text-text">{trophy.title}</h2>
                 <span
-                  className="rounded-full border px-2 py-0.5 text-[11px] font-medium"
+                  aria-label={`${trophy.grade} trophy`}
+                  className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-bold tracking-wide"
                   style={{
                     color: GRADE_COLOR_VAR[trophy.grade],
                     borderColor: GRADE_COLOR_VAR[trophy.grade],
+                    backgroundColor: `color-mix(in srgb, ${GRADE_COLOR_VAR[trophy.grade]} 16%, transparent)`,
                   }}
                 >
+                  <span aria-hidden="true" className="text-sm leading-none">
+                    {GRADE_SYMBOL[trophy.grade]}
+                  </span>
                   {trophy.grade}
                 </span>
                 {trophy.is_dlc && (

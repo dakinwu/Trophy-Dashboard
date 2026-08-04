@@ -23,7 +23,8 @@ up without prior chat context. See also `docs/superpowers/specs/` (design) and
   trophy, and chart visuals. Real playtime tile + per-game playtime, per-game
   external links (PSNProfiles / PSNine / HLTB / Metacritic / Exophase), and HLTB
   completion times on game cards. PSNine titles are resolved from its own search
-  results, cached, and opened with `?title=簡中名稱`.
+  results, preferring Simplified Chinese while retaining English-only canonical
+  titles, cached, and opened with a non-empty `?title=站內名稱`.
 - **Run:** `./run.ps1` (Windows) → backend `:8000` + frontend `:5173`. First-time
   setup in `README.md`. Full `dakinwu20` cache pre-warmed: 165 titles / 5,286
   trophies.

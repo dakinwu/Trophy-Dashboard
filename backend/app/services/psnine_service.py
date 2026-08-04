@@ -1,4 +1,4 @@
-"""Resolve PSN trophy-list names to PSNine's Simplified Chinese game names."""
+"""Resolve PSN trophy-list names to PSNine's own canonical game names."""
 
 from __future__ import annotations
 
@@ -24,6 +24,17 @@ _lock = threading.Lock()
 _last_call = 0.0
 _PSNGAME_PATH = re.compile(r"^/psngame/\d+/?$")
 _HAN_CHARACTER = re.compile(r"[\u3400-\u9fff]")
+_TITLE_KEY_SEPARATOR = re.compile(r"[^a-z0-9\u3400-\u9fff]+")
+
+# PSNine's search does not resolve every official English title to its Chinese
+# site title. Keep confirmed aliases here and normalize punctuation/casing.
+_PSNINE_TITLE_ALIASES = {
+    "wuchang fallen feathers": "明末 渊虚之羽",
+}
+
+
+def _title_key(title: str) -> str:
+    return _TITLE_KEY_SEPARATOR.sub(" ", title.casefold()).strip()
 
 
 def build_psnine_url(simplified_chinese_title: str) -> str:
@@ -31,15 +42,19 @@ def build_psnine_url(simplified_chinese_title: str) -> str:
 
 
 def parse_psnine_title(html: str) -> str | None:
-    """Return the first Simplified Chinese result title from a PSNine search."""
+    """Return PSNine's preferred result title, favouring Simplified Chinese."""
     soup = BeautifulSoup(html, "html.parser")
+    fallback = None
     for anchor in soup.select('a[href*="/psngame/"]'):
         href = anchor.get("href", "")
         path = re.sub(r"^https?://(?:www\.)?psnine\.com", "", href)
         title = anchor.get_text(" ", strip=True)
-        if _PSNGAME_PATH.match(path) and title and _HAN_CHARACTER.search(title):
+        if not (_PSNGAME_PATH.match(path) and title):
+            continue
+        if _HAN_CHARACTER.search(title):
             return title
-    return None
+        fallback = fallback or title
+    return fallback
 
 
 def get_psnine_title(
@@ -48,10 +63,14 @@ def get_psnine_title(
     cache: FileCache | None = None,
     session=None,
 ) -> str | None:
-    """Resolve and long-cache PSNine's own Simplified Chinese title for `game`."""
+    """Resolve and long-cache PSNine's own canonical title for `game`."""
     game = (game or "").strip()
     if not game:
         return None
+
+    alias = _PSNINE_TITLE_ALIASES.get(_title_key(game))
+    if alias:
+        return alias
 
     cache = cache or FileCache(settings.cache_dir)
     digest = hashlib.sha256(game.casefold().encode("utf-8")).hexdigest()

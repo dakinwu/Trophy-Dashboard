@@ -1,17 +1,17 @@
 import { useParams } from 'react-router-dom'
 import { ErrorState } from '../components/ErrorState'
-import { HeroHeader } from '../components/HeroHeader'
-import { LoadingProgress } from '../components/LoadingProgress'
+import { OverviewHero } from '../components/overview/OverviewHero'
+import { OverviewHeroSkeleton } from '../components/overview/OverviewHeroSkeleton'
 import { PlatinumMosaic } from '../components/PlatinumMosaic'
 import { PsnprofilesRankings } from '../components/PsnprofilesRankings'
 import { RarestTrophies } from '../components/RarestTrophies'
-import { StatTiles } from '../components/StatTiles'
 import { ApiError } from '../lib/api'
-import { useProfile } from '../lib/queries'
+import { useProfile, useRefreshProfile } from '../lib/queries'
 
 export function OverviewPage() {
   const { username } = useParams<{ username: string }>()
   const profileQuery = useProfile(username)
+  const { refresh, refreshing, refreshError } = useRefreshProfile(username)
 
   if (!username) {
     return (
@@ -23,7 +23,7 @@ export function OverviewPage() {
   }
 
   if (profileQuery.isLoading) {
-    return <LoadingProgress username={username} />
+    return <OverviewHeroSkeleton username={username} />
   }
 
   if (profileQuery.isError) {
@@ -61,11 +61,19 @@ export function OverviewPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <HeroHeader summary={profile_summary} />
-      <StatTiles counts={profile_summary.total_trophies} playtime={profile_summary.stats.Playtime} />
+      <OverviewHero
+        data={data}
+        refreshing={refreshing}
+        refreshError={refreshError}
+        onRefresh={refresh}
+      />
       <PsnprofilesRankings summary={profile_summary} />
       <div className="grid gap-6 lg:grid-cols-2">
-        <PlatinumMosaic trophies={trophy_log} />
+        <PlatinumMosaic
+          trophies={trophy_log}
+          platinumGames={data.platinum_games}
+          totalPlatinums={profile_summary.total_trophies.platinum}
+        />
         <RarestTrophies trophies={trophy_log} />
       </div>
     </div>

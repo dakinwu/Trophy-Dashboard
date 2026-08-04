@@ -13,8 +13,23 @@ if not exist "backend\.venv\Scripts\python.exe" (
   exit /b 1
 )
 
+pushd frontend
+call npm ls --depth=0 >nul 2>&1
+if errorlevel 1 (
+  echo Frontend dependencies changed; syncing packages...
+  call npm install --no-audit --no-fund
+  if errorlevel 1 (
+    echo(
+    echo   Failed to install frontend dependencies.
+    popd
+    pause
+    exit /b 1
+  )
+)
+popd
+
 start "Trophy Hunter - backend"  cmd /k "cd backend && .venv\Scripts\python.exe -m uvicorn app.main:app --reload --reload-dir app --port 8000"
-start "Trophy Hunter - frontend" cmd /k "cd frontend && npm run dev"
+start "Trophy Hunter - frontend" cmd /k "cd frontend && npm run dev -- --force"
 
 echo Starting servers... a browser tab will open in a few seconds.
 echo (Close the two windows that opened to stop the app.)

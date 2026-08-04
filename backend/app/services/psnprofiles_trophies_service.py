@@ -213,10 +213,11 @@ def get_psnprofiles_trophies(
     cache = cache or FileCache(settings.cache_dir)
     cache_seed = f"{game.casefold()}:{(platform or '').upper()}"
     digest = hashlib.sha256(cache_seed.encode("utf-8")).hexdigest()
-    # v4 parses every trophy table (including DLC) and retains both rarity
+    # v6 waits for the browser to load the declared trophy count before parsing
+    # every trophy table (including DLC), and retains both rarity
     # values so the client can distinguish tracked-player data from official
     # PSN data.
-    key = f"psnprofiles_trophies_v4/{digest}"
+    key = f"psnprofiles_trophies_v6/{digest}"
     cached = cache.load(key, _TROPHY_LIST_TTL)
     if cached is not None:
         return cached or None

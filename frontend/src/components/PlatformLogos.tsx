@@ -64,12 +64,12 @@ export function PlatformLogos({ platforms }: { platforms: Platform[] }) {
             key={platform}
             title={meta.label}
             aria-label={meta.label}
-            className={`flex h-7 min-w-12 items-center justify-center rounded-md border px-2 shadow-sm ${meta.badgeClass}`}
+            className={`flex h-7 min-w-11 items-center justify-center rounded-md border px-1 shadow-sm ${meta.badgeClass}`}
           >
             <img
               src={meta.logo}
               alt={meta.label}
-              className={`h-5 w-12 object-contain ${meta.logoClass}`}
+              className={`h-6 w-11 object-contain ${meta.logoClass}`}
             />
           </span>
         )

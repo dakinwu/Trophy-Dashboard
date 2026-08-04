@@ -12,14 +12,31 @@ class FakeMe:
         self.title_stats_calls = 0
         self.trophy_calls = 0
         self.title = SimpleNamespace(
+            title_icon_url="https://example/game.png",
+            earned_trophies=SimpleNamespace(
+                platinum=1,
+                gold=0,
+                silver=0,
+                bronze=0,
+            ),
             title_name="TUNIC™ (PS5)",
             title_platform=[SimpleNamespace(value="PS5")],
             np_communication_id="NPWR12345_00",
             last_updated_datetime=datetime(2026, 7, 25, tzinfo=timezone.utc),
+            progress=100,
         )
 
     def trophy_summary(self):
-        return SimpleNamespace(trophy_level=321)
+        return SimpleNamespace(
+            trophy_level=321,
+            progress=64,
+            earned_trophies=SimpleNamespace(
+                platinum=1,
+                gold=2,
+                silver=3,
+                bronze=4,
+            ),
+        )
 
     def get_profile_legacy(self):
         return {
@@ -150,6 +167,9 @@ def test_build_profile_caches_title_stats_and_trophies(monkeypatch, tmp_path):
     assert first is not None
     assert second is not None
     assert first.profile_summary.stats["Level"] == "321"
+    assert first.profile_summary.stats["Level Progress"] == "64%"
+    assert first.profile_summary.stats["Games Played"] == "1"
+    assert first.profile_summary.stats["Completed Games"] == "1"
     assert first.profile_summary.stats["Playtime"] == "12h"
     assert first.game_playtime_seconds == {"TUNIC™ (PS5)": 45_000}
     assert first.profile_summary.total_trophies.platinum == 1
@@ -159,6 +179,62 @@ def test_build_profile_caches_title_stats_and_trophies(monkeypatch, tmp_path):
     assert first.trophy_log[0].is_dlc is False
     assert me.title_stats_calls == 1
     assert me.trophy_calls == 1
+
+
+def test_build_public_profile_skips_private_playtime_and_scopes_cache(
+    monkeypatch,
+    tmp_path,
+):
+    user = FakeMe()
+    monkeypatch.setattr(
+        psn_service,
+        "_public_user",
+        lambda _npsso, _online_id: user,
+    )
+    cache = FileCache(tmp_path)
+
+    first = psn_service.build_profile_from_psn(
+        "token",
+        online_id="PublicUser",
+        cache=cache,
+    )
+    second = psn_service.build_profile_from_psn(
+        "token",
+        online_id="PublicUser",
+        cache=cache,
+    )
+
+    assert first is not None
+    assert second is not None
+    assert first.game_playtime_seconds == {}
+    assert "Playtime" not in first.profile_summary.stats
+    assert user.title_stats_calls == 0
+    assert user.trophy_calls == 1
+
+
+def test_build_public_profile_summary_lists_platinum_games(monkeypatch):
+    user = FakeMe()
+    monkeypatch.setattr(
+        psn_service,
+        "_public_user",
+        lambda _npsso, _online_id: user,
+    )
+
+    data = psn_service.build_public_profile_summary_from_psn(
+        "PublicUser",
+        "token",
+    )
+
+    assert data is not None
+    assert data.summary_only is True
+    assert data.trophy_log == []
+    assert data.profile_summary.total_trophies.total == 10
+    assert data.profile_summary.total_trophies.platinum == 1
+    assert data.profile_summary.stats["Level Progress"] == "64%"
+    assert data.profile_summary.stats["Completed Games"] == "1"
+    assert len(data.platinum_games) == 1
+    assert data.platinum_games[0].game.startswith("TUNIC")
+    assert user.trophy_calls == 0
 
 
 def test_build_game_detail_keeps_unearned_trophies_and_caches(monkeypatch, tmp_path):

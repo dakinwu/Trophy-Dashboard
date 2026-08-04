@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ApiError,
@@ -52,21 +52,34 @@ export function useGameDetail(
 export function useRefreshProfile(username: string | undefined) {
   const queryClient = useQueryClient()
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
+  const refreshLock = useRef(false)
+
+  useEffect(() => {
+    setRefreshError(null)
+  }, [username])
 
   async function refresh() {
-    if (!username || refreshing) return
+    if (!username || refreshLock.current) return
+    refreshLock.current = true
     setRefreshing(true)
+    setRefreshError(null)
     try {
       const data = await getProfile(username, true)
       queryClient.setQueryData(['profile', username], data)
-    } catch {
-      // keep the existing data on failure
+    } catch (error) {
+      setRefreshError(
+        error instanceof Error
+          ? error.message
+          : 'Refresh failed. The existing profile data is still available.',
+      )
     } finally {
+      refreshLock.current = false
       setRefreshing(false)
     }
   }
 
-  return { refresh, refreshing }
+  return { refresh, refreshing, refreshError }
 }
 
 /** HowLongToBeat times for a game (long-cached, shared across cards). */
