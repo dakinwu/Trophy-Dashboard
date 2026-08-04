@@ -1,14 +1,53 @@
+import { useState } from 'react'
 import type { Trophy } from '../lib/api'
-import { formatTrophyRarity, GRADE_COLOR_VAR, getRarestTrophies } from '../lib/trophy'
+import {
+  GRADE_COLOR_VAR,
+  getRarestTrophies,
+  rarityForSource,
+  type RarityRankingSource,
+} from '../lib/trophy'
+import { BorderBeam } from './magicui/BorderBeam'
 
 export function RarestTrophies({ trophies }: { trophies: Trophy[] }) {
-  const rarest = getRarestTrophies(trophies, 5)
+  const [source, setSource] = useState<RarityRankingSource>('psn')
+  const rarest = getRarestTrophies(trophies, 5, source)
+  const coverage = trophies.filter((trophy) => rarityForSource(trophy, source)).length
 
   return (
-    <section className="rounded-2xl border border-border bg-surface p-5">
-      <h2 className="mb-4 text-lg font-semibold text-text">Rarest Trophies</h2>
+    <section className="relative overflow-hidden rounded-2xl border border-border bg-surface p-5">
+      <BorderBeam size={110} duration={13} delay={7} reverse colorTo="var(--bronze)" />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-text">Rarest Trophies</h2>
+        <div className="flex rounded-lg border border-border bg-bg/50 p-1" aria-label="Rarity source">
+          {(['psn', 'psnprofiles'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setSource(value)}
+              aria-pressed={source === value}
+              className={[
+                'rounded-md px-3 py-1 text-xs font-semibold transition',
+                source === value
+                  ? 'bg-accent/20 text-accent-bright'
+                  : 'text-muted hover:text-text',
+              ].join(' ')}
+            >
+              {value === 'psn' ? 'PSN official' : 'PSNProfiles'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="mb-3 text-xs text-muted">
+        {source === 'psn'
+          ? `Official rarity coverage: ${coverage.toLocaleString()} of ${trophies.length.toLocaleString()} earned trophies.`
+          : `Cached PSNProfiles coverage: ${coverage.toLocaleString()} of ${trophies.length.toLocaleString()} earned trophies. Open a game's trophy page to add its tracked-player data.`}
+      </p>
       {rarest.length === 0 ? (
-        <p className="text-sm text-muted">No trophy data available.</p>
+        <p className="text-sm text-muted">
+          {source === 'psnprofiles'
+            ? 'No cached PSNProfiles rarity data is available yet.'
+            : 'No official trophy rarity data is available.'}
+        </p>
       ) : (
         <ul className="flex flex-col gap-2">
           {rarest.map((trophy, index) => (
@@ -33,7 +72,7 @@ export function RarestTrophies({ trophies }: { trophies: Trophy[] }) {
                   borderColor: GRADE_COLOR_VAR[trophy.grade],
                 }}
               >
-                {formatTrophyRarity(trophy)}
+                {source === 'psn' ? 'PSN' : 'PSNP'} {rarityForSource(trophy, source)}
               </span>
             </li>
           ))}

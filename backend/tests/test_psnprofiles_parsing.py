@@ -52,6 +52,7 @@ def test_parse_trophy_log_page_extracts_rows():
     assert t.rarity_percent == "2.5%"
     assert t.rarity_source == "psnprofiles"
     assert t.psnprofiles_rarity_percent == "2.5%"
+    assert t.platforms == ["UNKNOWN"]
     assert t.grade == "Gold"
 
 

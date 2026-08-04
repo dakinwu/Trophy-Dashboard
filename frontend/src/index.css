@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@heroui/styles";
 
 /*
  * Trophy Gold theme.
@@ -20,6 +21,29 @@
   --gold: #ffd700;
   --silver: #c0c0c0;
   --bronze: #cd7f32;
+
+  /* HeroUI v3 semantic tokens, mapped to the existing Trophy Gold palette. */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --surface-foreground: var(--text);
+  --surface-secondary: #2b2417;
+  --surface-secondary-foreground: var(--text);
+  --surface-tertiary: #342b1a;
+  --surface-tertiary-foreground: var(--text);
+  --overlay: #2b2417;
+  --overlay-foreground: var(--text);
+  --default: #302819;
+  --default-foreground: var(--text);
+  --accent-foreground: var(--bg);
+  --field-background: #19150e;
+  --field-foreground: var(--text);
+  --field-placeholder: var(--muted);
+  --field-border: var(--border);
+  --separator: var(--border);
+  --focus: var(--accent);
+  --link: var(--accent);
+  --field-border-width: 1px;
+  --radius: 0.5rem;
 
   color-scheme: dark;
 }
@@ -59,4 +83,76 @@ body {
 
 * {
   box-sizing: border-box;
+}
+
+.magic-grid::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  opacity: 0.18;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--accent) 18%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--accent) 18%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse at 20% 20%, black, transparent 72%);
+}
+
+.magic-shimmer-text {
+  color: transparent;
+  background-image: linear-gradient(
+    100deg,
+    var(--muted) 25%,
+    var(--accent-bright) 45%,
+    var(--platinum) 55%,
+    var(--muted) 75%
+  );
+  background-size: 250% 100%;
+  background-clip: text;
+  animation: magic-shimmer 2.4s linear infinite;
+}
+
+.command-center-spotlight {
+  --hero-spotlight-x: 50%;
+  --hero-spotlight-y: 30%;
+  --hero-spotlight-opacity: 0;
+}
+
+.command-center-spotlight::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--hero-spotlight-opacity);
+  background: radial-gradient(
+    360px circle at var(--hero-spotlight-x) var(--hero-spotlight-y),
+    color-mix(in srgb, var(--accent) 12%, transparent),
+    transparent 70%
+  );
+  transition: opacity 180ms ease-out;
+}
+
+@keyframes magic-shimmer {
+  to {
+    background-position: -250% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .magic-shimmer-text {
+    color: var(--muted);
+    background: none;
+    animation: none;
+  }
+
+  .command-center-spotlight::after {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .command-center-spotlight::after {
+    display: none;
+  }
 }

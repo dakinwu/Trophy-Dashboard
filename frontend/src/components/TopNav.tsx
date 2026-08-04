@@ -1,6 +1,6 @@
+import { Button, Input } from '@heroui/react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, NavLink, useMatch, useNavigate } from 'react-router-dom'
-import { useRefreshProfile } from '../lib/queries'
 
 const NAV_ITEMS = [
   { label: 'Overview', subpath: '' },
@@ -20,7 +20,6 @@ export function TopNav() {
   const username = match?.params.username
   const navigate = useNavigate()
   const [query, setQuery] = useState(username ?? '')
-  const { refresh, refreshing } = useRefreshProfile(username)
 
   useEffect(() => {
     setQuery(username ?? '')
@@ -44,23 +43,31 @@ export function TopNav() {
           <span>Trophy Hunter</span>
         </Link>
 
-        <form onSubmit={handleSubmit} className="flex min-w-[200px] flex-1 items-center gap-2">
-          <input
+        <form
+          onSubmit={handleSubmit}
+          className="order-3 flex w-full min-w-0 basis-full grow items-center gap-2 sm:order-none sm:w-auto sm:basis-0 sm:min-w-[200px]"
+        >
+          <Input
+            id="global-psn-id-search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="PSN ID..."
             aria-label="PSN ID"
-            className="w-full flex-1 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text placeholder:text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            variant="secondary"
+            fullWidth
+            className="min-w-0 flex-1"
           />
-          <button
+          <Button
             type="submit"
-            className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-bg transition hover:bg-accent-bright"
+            size="sm"
+            variant="primary"
+            className="shrink-0"
           >
             Analyze
-          </button>
+          </Button>
         </form>
 
-        <nav className="flex flex-wrap items-center gap-1 text-sm">
+        <nav className="order-4 flex w-full flex-nowrap items-center gap-1 overflow-x-auto text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:order-none sm:w-auto sm:flex-wrap sm:overflow-visible">
           {NAV_ITEMS.map((item) => {
             const disabled = !username
             const to = username ? `/u/${username}${item.subpath}` : '/'
@@ -75,7 +82,7 @@ export function TopNav() {
                 }}
                 className={({ isActive }) =>
                   [
-                    'rounded-md px-3 py-1.5 transition',
+                    'flex min-h-11 shrink-0 items-center rounded-md px-3 py-1.5 transition',
                     disabled
                       ? 'cursor-not-allowed text-muted/50'
                       : isActive
@@ -90,17 +97,6 @@ export function TopNav() {
           })}
         </nav>
 
-        {username && (
-          <button
-            type="button"
-            onClick={refresh}
-            disabled={refreshing}
-            title="Re-fetch the latest trophies from PSN (bypass the cache)"
-            className="shrink-0 rounded-md border border-border px-3 py-1.5 text-sm text-muted transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {refreshing ? 'Refreshing…' : '🔄 Refresh'}
-          </button>
-        )}
       </div>
     </header>
   )

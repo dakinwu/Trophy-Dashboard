@@ -14,8 +14,9 @@ visible nodriver-controlled Chrome session.
 - **`backend/`** — FastAPI. PSN official API (PSNAWP) as the primary source for the
   token owner + a PSNProfiles scraper fallback, a 24-hour file cache, and REST + SSE
   endpoints.
-- **`frontend/`** — Vite + React + TypeScript + Tailwind ("Trophy Gold" dark theme).
-  Pages: Overview, Games, Timeline, Milestones, Data.
+- **`frontend/`** — Vite + React + TypeScript + Tailwind CSS v4 + HeroUI v3
+  ("Trophy Gold" dark theme), with Recharts for data visualization. Pages:
+  Overview, Games, Timeline, Milestones, Data.
 
 ## Setup (first time)
 
@@ -45,7 +46,7 @@ visible nodriver-controlled Chrome session.
   dashboard in the browser. Close those two windows to stop the app.
 - From a terminal instead: `run.cmd`, or `./run.ps1` (PowerShell).
 - **Manual:**
-  - Backend: `cd backend; .venv\Scripts\python.exe -m uvicorn app.main:app --port 8000`
+  - Backend: `cd backend; .venv\Scripts\python.exe -m uvicorn app.main:app --reload --reload-dir app --port 8000`
   - Frontend: `cd frontend; npm run dev`
 - Then open **http://localhost:5173** and enter your PSN ID.
 
@@ -64,8 +65,9 @@ visible nodriver-controlled Chrome session.
 - The Overview page can load PSNProfiles world and country rank on demand. These
   ranks cover public profiles tracked by PSNProfiles, not every PlayStation user,
   and successful lookups are cached for 6 hours.
-- PSNine links resolve the site's own Simplified Chinese game name on first click,
-  cache it, then open `https://www.psnine.com/psngame?title=<簡中名稱>`.
+- PSNine links resolve the site's own title on first click, preferring its
+  Simplified Chinese name and retaining English-only canonical titles such as
+  `Tunic`, then open `https://www.psnine.com/psngame?title=<站內名稱>`.
 
 ## Tests
 

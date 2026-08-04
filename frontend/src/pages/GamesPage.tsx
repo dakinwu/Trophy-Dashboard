@@ -18,16 +18,22 @@ export function GamesPage() {
   return (
     <ProfileStateGate username={username} query={profileQuery}>
       {(data) => (
-        <GamesContent trophyLog={data.trophy_log} playtime={data.game_playtime_seconds} />
+        <GamesContent
+          username={data.profile_summary.username}
+          trophyLog={data.trophy_log}
+          playtime={data.game_playtime_seconds}
+        />
       )}
     </ProfileStateGate>
   )
 }
 
 function GamesContent({
+  username,
   trophyLog,
   playtime,
 }: {
+  username: string
   trophyLog: Trophy[]
   playtime?: Record<string, number>
 }) {
@@ -56,10 +62,18 @@ function GamesContent({
   return (
     <div className="flex flex-col gap-6">
       <section>
-        <h1 className="mb-4 text-lg font-semibold text-text">Games</h1>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h1 className="text-lg font-semibold text-text">Games</h1>
+            <p className="mt-1 text-xs text-muted">Sorted by your latest earned trophy.</p>
+          </div>
+          <span className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold tabular-nums text-accent">
+            {summaries.length.toLocaleString()} games
+          </span>
+        </div>
+        <div className="grid items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {sortedByRecent.map((summary) => (
-            <GameCard key={summary.game} summary={summary} />
+            <GameCard key={summary.game} summary={summary} username={username} />
           ))}
         </div>
       </section>

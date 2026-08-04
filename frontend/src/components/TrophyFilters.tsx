@@ -1,3 +1,4 @@
+import { Button, Input } from '@heroui/react'
 import type { ChangeEvent } from 'react'
 import type { TrophyGrade } from '../lib/api'
 import { ALL_GRADES, type DataFilters } from '../lib/dataTable'
@@ -35,12 +36,13 @@ export function TrophyFilters({ filters, onChange }: TrophyFiltersProps) {
         <label htmlFor="game-search" className="text-xs uppercase tracking-wide text-muted">
           Game
         </label>
-        <input
+        <Input
           id="game-search"
           value={filters.search}
           onChange={handleSearch}
           placeholder="Search games..."
-          className="w-48 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text placeholder:text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          variant="secondary"
+          className="w-48"
         />
       </div>
 
@@ -50,12 +52,14 @@ export function TrophyFilters({ filters, onChange }: TrophyFiltersProps) {
           {ALL_GRADES.map((grade) => {
             const active = filters.grades.has(grade)
             return (
-              <button
+              <Button
                 key={grade}
                 type="button"
-                onClick={() => toggleGrade(grade)}
+                onPress={() => toggleGrade(grade)}
                 aria-pressed={active}
-                className="rounded-full border px-2.5 py-1 text-xs font-medium transition"
+                size="sm"
+                variant={active ? 'outline' : 'ghost'}
+                className="min-w-0 px-2.5 text-xs"
                 style={{
                   color: active ? GRADE_COLOR_VAR[grade] : 'var(--muted)',
                   borderColor: active ? GRADE_COLOR_VAR[grade] : 'var(--border)',
@@ -63,7 +67,7 @@ export function TrophyFilters({ filters, onChange }: TrophyFiltersProps) {
                 }}
               >
                 {grade}
-              </button>
+              </Button>
             )
           })}
         </div>
@@ -73,12 +77,12 @@ export function TrophyFilters({ filters, onChange }: TrophyFiltersProps) {
         <label htmlFor="date-from" className="text-xs uppercase tracking-wide text-muted">
           From
         </label>
-        <input
+        <Input
           id="date-from"
           type="date"
           value={filters.from}
           onChange={handleFrom}
-          className="rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          variant="secondary"
         />
       </div>
 
@@ -86,12 +90,12 @@ export function TrophyFilters({ filters, onChange }: TrophyFiltersProps) {
         <label htmlFor="date-to" className="text-xs uppercase tracking-wide text-muted">
           To
         </label>
-        <input
+        <Input
           id="date-to"
           type="date"
           value={filters.to}
           onChange={handleTo}
-          className="rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          variant="secondary"
         />
       </div>
     </div>

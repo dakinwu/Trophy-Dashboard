@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import threading
 import time
 from dataclasses import dataclass
@@ -13,6 +14,13 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 _browser_profile_lock = threading.Lock()
+_TROPHY_TOTAL = re.compile(
+    r"\b([\d,]+)\s+trophies\s*[•·]\s*[\d,]+\s+points\b",
+    flags=re.IGNORECASE,
+)
+_TROPHY_LINK = re.compile(
+    r"/trophy/\d+(?:-[^/?#]+)?/(\d+)(?:-[^/?#]+)?/?$",
+)
 _ERROR_MARKERS = (
     "profile is private",
     "profile not found",
@@ -21,6 +29,8 @@ _ERROR_MARKERS = (
     "no guides found",
     "no guide found",
     "no guides were found",
+    "no games found",
+    "no game found",
     "couldn't find any guides",
     "page could not be found",
 )
@@ -42,6 +52,44 @@ class BrowserResponse:
             )
 
 
+def _trophy_page_is_complete(
+    soup: BeautifulSoup,
+    title: str,
+    body: str,
+) -> bool:
+    """Wait for every trophy row declared by a PSNProfiles game page."""
+    if "trophies" not in title:
+        return True
+
+    trophy_urls: set[str] = set()
+    trophy_positions: set[int] = set()
+    for anchor in soup.select('a[href*="/trophy/"]'):
+        trophy_url = anchor.get("href", "").split("?", maxsplit=1)[0]
+        link_match = _TROPHY_LINK.search(trophy_url)
+        if link_match is None:
+            continue
+        trophy_urls.add(link_match.group(0).rstrip("/"))
+        trophy_positions.add(int(link_match.group(1)))
+
+    # Trophy URL positions are sequential and one-based. This catches partial
+    # rarity-sorted DOMs even when the page omits a textual total.
+    if trophy_positions and len(trophy_urls) < max(trophy_positions):
+        return False
+
+    declared_totals = [
+        int(value.replace(",", ""))
+        for value in _TROPHY_TOTAL.findall(body)
+    ]
+    if not declared_totals:
+        return True
+    # A page with DLC contains base-game, DLC-group, and platform totals. The
+    # largest summary is the complete platform count. Restricting the match to
+    # "Trophies • Points" avoids the unrelated lifetime "Trophies earned"
+    # statistic in the page header.
+    expected = max(declared_totals)
+    return len(trophy_urls) >= expected
+
+
 def _page_is_ready(html: str) -> bool:
     """True once Cloudflare has yielded requested content or a terminal error."""
     soup = BeautifulSoup(html, "html.parser")
@@ -50,9 +98,11 @@ def _page_is_ready(html: str) -> bool:
         return False
 
     body = soup.get_text(" ", strip=True).lower()
+    if soup.select_one("table.zebra"):
+        return _trophy_page_is_complete(soup, title, body)
+
     if (
         soup.select_one("#user-bar .username")
-        or soup.select_one("table.zebra")
         or soup.select_one('a[href*="/guide/"]')
         or "estimated trophy difficulty" in body
         or "approximate amount of time to platinum" in body
@@ -119,6 +169,20 @@ class NodriverSession:
             last_html = await tab.get_content()
             if _page_is_ready(last_html):
                 return BrowserResponse(last_html)
+            # Trophy lists can lazy-render additional rows as the page scrolls.
+            # Keep advancing by one viewport until the declared count and URL
+            # positions are complete, then the next poll returns the full DOM.
+            partial_soup = BeautifulSoup(last_html, "html.parser")
+            partial_title = (
+                partial_soup.title.get_text(" ", strip=True).lower()
+                if partial_soup.title
+                else ""
+            )
+            if (
+                "trophies" in partial_title
+                and partial_soup.select_one("table.zebra")
+            ):
+                await tab.scroll_down(100)
             await tab.sleep(1)
 
         title = BeautifulSoup(last_html, "html.parser").title

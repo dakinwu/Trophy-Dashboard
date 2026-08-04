@@ -1,3 +1,4 @@
+import { Button, Input } from '@heroui/react'
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -26,19 +27,22 @@ export function LandingPage() {
         </p>
       </div>
       <form onSubmit={handleSubmit} className="flex w-full max-w-sm gap-2">
-        <input
+        <Input
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder="PSN ID..."
           aria-label="PSN ID"
-          className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          variant="secondary"
+          fullWidth
+          className="min-w-0 flex-1"
         />
-        <button
+        <Button
           type="submit"
-          className="shrink-0 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-bg transition hover:bg-accent-bright"
+          variant="primary"
+          className="shrink-0"
         >
           Analyze
-        </button>
+        </Button>
       </form>
     </div>
   )

@@ -1,8 +1,12 @@
-import type { Trophy, TrophyGrade } from './api'
+import type { Platform, Trophy, TrophyGrade } from './api'
 import { parseRarityPercent, sortTrophiesByTime } from './trophy'
 
 export interface GameSummary {
+  /** Source game key, including a platform suffix when needed for uniqueness. */
   game: string
+  /** Human-facing title; platform is represented by logos instead of a suffix. */
+  displayName: string
+  platforms: Platform[]
   iconUrl: string
   counts: Record<TrophyGrade, number>
   totalEarned: number
@@ -19,6 +23,10 @@ const ICON_GRADE_PRIORITY: Record<TrophyGrade, number> = {
   Bronze: 3,
 }
 
+function displayGameName(game: string): string {
+  return game.replace(/\s+\((?:PS3|PS4|PS5|PS\s*VITA|PSVITA|PSPC)\)\s*$/i, '')
+}
+
 /** Groups the trophy log by game, sorted by total trophies earned (descending). */
 export function groupTrophiesByGame(
   trophies: Trophy[],
@@ -28,10 +36,14 @@ export function groupTrophiesByGame(
   const iconPriority = new Map<string, number>()
 
   for (const trophy of trophies) {
+    const trophyPlatforms: Platform[] =
+      trophy.platforms && trophy.platforms.length > 0 ? trophy.platforms : ['UNKNOWN']
     let summary = byGame.get(trophy.game)
     if (!summary) {
       summary = {
         game: trophy.game,
+        displayName: displayGameName(trophy.game),
+        platforms: [...new Set<Platform>(trophyPlatforms)],
         iconUrl: trophy.icon_url,
         counts: { Platinum: 0, Gold: 0, Silver: 0, Bronze: 0 },
         totalEarned: 0,
@@ -43,6 +55,9 @@ export function groupTrophiesByGame(
       iconPriority.set(trophy.game, ICON_GRADE_PRIORITY[trophy.grade])
     }
 
+    for (const platform of trophyPlatforms) {
+      if (!summary.platforms.includes(platform)) summary.platforms.push(platform)
+    }
     summary.counts[trophy.grade] += 1
     summary.totalEarned += 1
     if (trophy.grade === 'Platinum') summary.hasPlatinum = true

@@ -32,11 +32,38 @@ export function formatTrophyRarity(trophy: Trophy): string {
   return `${label} ${trophy.rarity_percent}`
 }
 
-/** Returns the `count` trophies with the lowest rarity percentage (rarest first). */
-export function getRarestTrophies(trophies: Trophy[], count = 5): Trophy[] {
+export type RarityRankingSource = 'psn' | 'psnprofiles'
+
+export function rarityForSource(
+  trophy: Trophy,
+  source: RarityRankingSource,
+): string | null {
+  if (source === 'psnprofiles') {
+    return (
+      trophy.psnprofiles_rarity_percent ??
+      (trophy.rarity_source === 'psnprofiles' ? trophy.rarity_percent : null)
+    )
+  }
+  if (trophy.psn_rarity_percent) return trophy.psn_rarity_percent
+  return trophy.rarity_source === 'psn' ? trophy.rarity_percent : null
+}
+
+/** Returns the `count` trophies with the lowest selected-source percentage. */
+export function getRarestTrophies(
+  trophies: Trophy[],
+  count = 5,
+  source: RarityRankingSource = 'psn',
+): Trophy[] {
   return [...trophies]
-    .filter((trophy) => Number.isFinite(parseRarityPercent(trophy.rarity_percent)))
-    .sort((a, b) => parseRarityPercent(a.rarity_percent) - parseRarityPercent(b.rarity_percent))
+    .filter((trophy) => {
+      const rarity = rarityForSource(trophy, source)
+      return rarity !== null && Number.isFinite(parseRarityPercent(rarity))
+    })
+    .sort((a, b) => {
+      const left = rarityForSource(a, source) as string
+      const right = rarityForSource(b, source) as string
+      return parseRarityPercent(left) - parseRarityPercent(right)
+    })
     .slice(0, count)
 }
 
