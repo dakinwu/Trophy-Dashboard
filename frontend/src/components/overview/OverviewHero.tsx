@@ -2,13 +2,13 @@ import { Avatar, Button, Tabs } from '@heroui/react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { ProfileData, TrophyGrade } from '../../lib/api'
+import type { ProfileData } from '../../lib/api'
 import {
   buildOverviewHeroViewModel,
   type HeroMetricTone,
   type OverviewHeroViewModel,
 } from '../../lib/overviewHero'
-import { GRADE_COLOR_VAR, rarityForSource } from '../../lib/trophy'
+import { GRADE_COLOR_VAR, GRADE_LABEL, rarityForSource } from '../../lib/trophy'
 import { BorderBeam } from '../magicui/BorderBeam'
 import { NumberTicker } from '../magicui/NumberTicker'
 import { TrophyLevelGauge } from './TrophyLevelGauge'
@@ -30,16 +30,9 @@ const TONE_CLASS: Record<HeroMetricTone, string> = {
   muted: 'text-muted',
 }
 
-const GRADE_SHORT_LABEL: Record<TrophyGrade, string> = {
-  Platinum: 'P',
-  Gold: 'G',
-  Silver: 'S',
-  Bronze: 'B',
-}
-
 function formatUpdatedAt(value: Date | null): string | null {
   if (!value) return null
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat('zh-TW', {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(value)
@@ -75,22 +68,22 @@ function ProgressPanel({ viewModel }: { viewModel: OverviewHeroViewModel }) {
         <div className="flex items-end justify-between gap-3">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-              Game progress
+              遊戲進度
             </p>
             {viewModel.completedGames !== null && viewModel.gamesPlayed !== null ? (
               <p className="mt-1 text-lg font-bold text-text">
                 {viewModel.completedGames.toLocaleString()}
                 <span className="font-normal text-muted">
                   {' '}
-                  of {viewModel.gamesPlayed.toLocaleString()} completed
+                  ／共 {viewModel.gamesPlayed.toLocaleString()} 款已完成
                 </span>
               </p>
             ) : viewModel.completionPercent !== null ? (
               <p className="mt-1 text-lg font-bold text-text">
-                {viewModel.completionPercent}% <span className="font-normal text-muted">completion</span>
+                {viewModel.completionPercent}% <span className="font-normal text-muted">完成率</span>
               </p>
             ) : (
-              <p className="mt-1 text-sm text-muted">Game completion data is unavailable.</p>
+              <p className="mt-1 text-sm text-muted">無法取得遊戲完成資料。</p>
             )}
           </div>
           {normalizedProgress !== null && (
@@ -104,7 +97,7 @@ function ProgressPanel({ viewModel }: { viewModel: OverviewHeroViewModel }) {
           <div
             className="mt-3 h-2 overflow-hidden rounded-full bg-border/60"
             role="progressbar"
-            aria-label="Game completion progress"
+            aria-label="遊戲完成進度"
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(normalizedProgress)}
@@ -119,10 +112,10 @@ function ProgressPanel({ viewModel }: { viewModel: OverviewHeroViewModel }) {
         <div className="mt-6 flex items-end justify-between gap-3">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-              Trophy cabinet
+              獎盃收藏
             </p>
             <p className="mt-1 text-sm text-muted">
-              {viewModel.totalTrophies.toLocaleString()} trophies by grade
+              共 {viewModel.totalTrophies.toLocaleString()} 座獎盃
             </p>
           </div>
         </div>
@@ -152,10 +145,10 @@ function ProgressPanel({ viewModel }: { viewModel: OverviewHeroViewModel }) {
             <div key={item.grade} className="min-w-0 rounded-lg border border-border/70 bg-bg/35 p-2 text-center">
               <p
                 className="truncate text-[10px] font-black uppercase"
-                title={item.grade}
+                title={GRADE_LABEL[item.grade]}
                 style={{ color: GRADE_COLOR_VAR[item.grade] }}
               >
-                {GRADE_SHORT_LABEL[item.grade]} · {item.grade}
+                {GRADE_LABEL[item.grade]}
               </p>
               <p className="mt-1 truncate text-sm font-bold tabular-nums text-text">
                 {item.count.toLocaleString()}
@@ -178,19 +171,19 @@ function RarityPanel({ viewModel }: { viewModel: OverviewHeroViewModel }) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-              Earned trophy rarity
+              已取得獎盃稀有度
             </p>
-            <p className="mt-1 text-sm text-muted">{total.toLocaleString()} trophies with rarity data</p>
+            <p className="mt-1 text-sm text-muted">{total.toLocaleString()} 座獎盃有稀有度資料</p>
           </div>
           <span className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[10px] font-bold text-accent">
-            Source · {viewModel.raritySourceLabel}
+            來源 · {viewModel.raritySourceLabel}
           </span>
         </div>
 
         <div
           className="mt-5 flex flex-col gap-3"
           role="img"
-          aria-label={`${viewModel.raritySourceLabel} rarity distribution: ${viewModel.rarityBuckets
+          aria-label={`${viewModel.raritySourceLabel} 稀有度分布：${viewModel.rarityBuckets
             .map((bucket) => `${bucket.label} ${bucket.count}`)
             .join(', ')}`}
         >
@@ -219,7 +212,7 @@ function RecentPanel({ viewModel }: { viewModel: OverviewHeroViewModel }) {
     <PanelTransition>
       <div className="min-h-56">
         <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-          Latest earned trophies
+          最近取得的獎盃
         </p>
         <ul className="flex flex-col gap-2">
           {viewModel.recentTrophies.map(({ trophy, earnedAt }) => {
@@ -250,10 +243,10 @@ function RecentPanel({ viewModel }: { viewModel: OverviewHeroViewModel }) {
                     className="text-[10px] font-bold"
                     style={{ color: GRADE_COLOR_VAR[trophy.grade] }}
                   >
-                    {trophy.grade}
+                    {GRADE_LABEL[trophy.grade]}
                   </p>
                   <p className="mt-0.5 text-[10px] text-muted">
-                    {earnedAt.toLocaleDateString()}
+                    {earnedAt.toLocaleDateString('zh-TW')}
                     {rarity ? ` · ${viewModel.raritySourceLabel} ${rarity}` : ''}
                   </p>
                 </div>
@@ -267,16 +260,16 @@ function RecentPanel({ viewModel }: { viewModel: OverviewHeroViewModel }) {
 }
 
 function InteractivePanel({ viewModel }: { viewModel: OverviewHeroViewModel }) {
-  const tabs: { key: HeroTabKey; label: string }[] = [{ key: 'progress', label: 'Progress' }]
+  const tabs: { key: HeroTabKey; label: string }[] = [{ key: 'progress', label: '進度' }]
   if (viewModel.raritySource && viewModel.rarityBuckets.some((bucket) => bucket.count > 0)) {
-    tabs.push({ key: 'rarity', label: 'Rarity' })
+    tabs.push({ key: 'rarity', label: '稀有度' })
   }
-  if (viewModel.recentTrophies.length > 0) tabs.push({ key: 'recent', label: 'Recent' })
+  if (viewModel.recentTrophies.length > 0) tabs.push({ key: 'recent', label: '最近取得' })
 
   if (tabs.length === 1) {
     return (
       <div className="h-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-border/80 bg-bg/35 p-4 sm:p-5">
-        <h2 className="mb-4 text-sm font-semibold text-text">Profile progress</h2>
+        <h2 className="mb-4 text-sm font-semibold text-text">玩家進度</h2>
         <ProgressPanel viewModel={viewModel} />
       </div>
     )
@@ -286,7 +279,7 @@ function InteractivePanel({ viewModel }: { viewModel: OverviewHeroViewModel }) {
     <div className="h-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-border/80 bg-bg/35 p-3 sm:p-4">
       <Tabs
         defaultSelectedKey="progress"
-        aria-label="Profile trophy insights"
+        aria-label="玩家獎盃分析"
         variant="secondary"
         className="min-w-0 max-w-full"
       >
@@ -358,18 +351,18 @@ export function OverviewHero({ data, refreshing, refreshError, onRefresh }: Over
               {viewModel.avatarUrl && (
                 <Avatar.Image
                   src={viewModel.avatarUrl}
-                  alt={`${viewModel.username} PSN avatar`}
+                  alt={`${viewModel.username} 的 PSN 個人圖片`}
                   className="h-full w-full object-cover"
                 />
               )}
-              <Avatar.Fallback className="text-3xl" aria-label="Avatar unavailable">
+              <Avatar.Fallback className="text-3xl" aria-label="無法取得個人圖片">
                 🏆
               </Avatar.Fallback>
             </Avatar>
 
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">
-                Trophy Profile Command Center
+                獎盃玩家指揮中心
               </p>
               <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
                 <h1
@@ -391,20 +384,20 @@ export function OverviewHero({ data, refreshing, refreshError, onRefresh }: Over
                         : 'border-platinum/30 bg-platinum/10 text-platinum',
                     ].join(' ')}
                   >
-                    {viewModel.cacheStatus === 'cached' ? 'Cached · 24h' : 'Live result'}
+                    {viewModel.cacheStatus === 'cached' ? '快取 · 24 小時' : '即時結果'}
                   </span>
                 )}
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                 {updatedAt && (
-                  <time dateTime={viewModel.fetchedAt?.toISOString()}>Updated {updatedAt}</time>
+                  <time dateTime={viewModel.fetchedAt?.toISOString()}>更新時間：{updatedAt}</time>
                 )}
                 <button
                   type="button"
                   onClick={focusProfileSearch}
                   className="min-h-7 rounded-md font-semibold text-accent outline-none transition hover:text-accent-bright focus-visible:ring-2 focus-visible:ring-accent"
                 >
-                  Change profile
+                  切換玩家
                 </button>
               </div>
             </div>
@@ -417,9 +410,9 @@ export function OverviewHero({ data, refreshing, refreshError, onRefresh }: Over
               variant="outline"
               size="sm"
               className="min-h-11 shrink-0"
-              aria-label="Refresh profile data from its configured source"
+              aria-label="從設定的資料來源重新整理玩家資料"
             >
-              {refreshing ? 'Syncing…' : 'Refresh data'}
+              {refreshing ? '同步中…' : '重新整理資料'}
             </Button>
           </div>
 
@@ -444,35 +437,38 @@ export function OverviewHero({ data, refreshing, refreshError, onRefresh }: Over
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Profile sections">
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5" aria-label="玩家功能頁面">
             <Button
               type="button"
               onPress={() => navigate(`${profileBase}/games`)}
               variant="primary"
               className="min-h-11"
             >
-              View Games
+              查看遊戲
+            </Button>
+            <Button type="button" onPress={() => navigate(`${profileBase}/advisor`)} variant="outline" className="min-h-11">
+              獎盃顧問
             </Button>
             <Button type="button" onPress={() => navigate(`${profileBase}/timeline`)} variant="outline" className="min-h-11">
-              Timeline
+              時間軸
             </Button>
             <Button type="button" onPress={() => navigate(`${profileBase}/milestones`)} variant="outline" className="min-h-11">
-              Milestones
+              里程碑
             </Button>
             <Button type="button" onPress={() => navigate(`${profileBase}/data`)} variant="ghost" className="min-h-11">
-              Data
+              資料
             </Button>
           </div>
 
           <div className="mt-4 min-h-5" aria-live="polite" aria-atomic="true">
             {refreshing ? (
-              <p className="text-xs text-muted">Syncing in the background. Current profile data remains visible.</p>
+              <p className="text-xs text-muted">正在背景同步，目前的玩家資料仍會保留顯示。</p>
             ) : refreshError ? (
               <p role="alert" className="text-xs text-bronze">
-                Refresh failed: {refreshError} Existing profile data is still shown.
+                重新整理失敗，目前仍顯示原有的玩家資料。
               </p>
             ) : viewModel.cacheStatus === 'cached' ? (
-              <p className="text-xs text-muted">Loaded from the backend's 24-hour profile cache.</p>
+              <p className="text-xs text-muted">目前資料來自後端的 24 小時玩家快取。</p>
             ) : null}
           </div>
         </div>

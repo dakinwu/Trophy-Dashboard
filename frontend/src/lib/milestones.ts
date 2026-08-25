@@ -24,7 +24,7 @@ export function computeMilestones(trophies: Trophy[]): Milestone[] {
   milestones.push({
     key: 'first-trophy',
     icon: '🎮',
-    title: 'First Trophy',
+    title: '第一座獎盃',
     game: first.game,
     trophyTitle: first.title,
     date: first.parsedDate,
@@ -37,7 +37,7 @@ export function computeMilestones(trophies: Trophy[]): Milestone[] {
     milestones.push({
       key: 'first-platinum',
       icon: '🏆',
-      title: 'First Platinum',
+      title: '第一座白金',
       game: firstPlatinum.game,
       trophyTitle: firstPlatinum.title,
       date: firstPlatinum.parsedDate,
@@ -48,7 +48,7 @@ export function computeMilestones(trophies: Trophy[]): Milestone[] {
       milestones.push({
         key: 'latest-platinum',
         icon: '✨',
-        title: 'Latest Platinum',
+        title: '最近取得的白金',
         game: latestPlatinum.game,
         trophyTitle: latestPlatinum.title,
         date: latestPlatinum.parsedDate,
@@ -61,7 +61,7 @@ export function computeMilestones(trophies: Trophy[]): Milestone[] {
     milestones.push({
       key: 'fastest-platinum',
       icon: '⚡',
-      title: `Fastest Platinum — ${formatDuration(fastest.durationMs)}`,
+      title: `最快取得白金 — ${formatDuration(fastest.durationMs)}`,
       game: fastest.game,
       trophyTitle: fastest.platinum.title,
       date: fastest.platinum.parsedDate,
@@ -73,7 +73,7 @@ export function computeMilestones(trophies: Trophy[]): Milestone[] {
     milestones.push({
       key: `trophy-${n}`,
       icon: '🎯',
-      title: `${n.toLocaleString()}th Trophy`,
+      title: `第 ${n.toLocaleString()} 座獎盃`,
       game: trophy.game,
       trophyTitle: trophy.title,
       date: trophy.parsedDate,
@@ -85,7 +85,7 @@ export function computeMilestones(trophies: Trophy[]): Milestone[] {
     milestones.push({
       key: `platinum-${n}`,
       icon: '💎',
-      title: `${n.toLocaleString()}th Platinum`,
+      title: `第 ${n.toLocaleString()} 座白金`,
       game: trophy.game,
       trophyTitle: trophy.title,
       date: trophy.parsedDate,

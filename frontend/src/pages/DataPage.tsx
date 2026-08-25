@@ -39,7 +39,7 @@ function DataContent({ username, trophyLog }: { username: string; trophyLog: Tro
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold text-text">Trophy Data</h1>
+        <h1 className="text-lg font-semibold text-text">獎盃資料</h1>
         <Button
           type="button"
           onPress={handleDownload}
@@ -47,14 +47,14 @@ function DataContent({ username, trophyLog }: { username: string; trophyLog: Tro
           size="sm"
           variant="primary"
         >
-          Download CSV
+          下載 CSV
         </Button>
       </div>
 
       <TrophyFilters filters={filters} onChange={setFilters} />
 
       <p className="text-sm text-muted">
-        Showing {filteredRows.length.toLocaleString()} of {rows.length.toLocaleString()} trophies
+        顯示 {filteredRows.length.toLocaleString()}／{rows.length.toLocaleString()} 座獎盃
       </p>
 
       <TrophyTable rows={filteredRows} />

@@ -1,11 +1,11 @@
 import type { DataRow } from '../lib/dataTable'
-import { formatTrophyRarity, GRADE_COLOR_VAR } from '../lib/trophy'
+import { formatTrophyRarity, GRADE_COLOR_VAR, GRADE_LABEL } from '../lib/trophy'
 
 export function TrophyTable({ rows }: { rows: DataRow[] }) {
   if (rows.length === 0) {
     return (
       <p className="rounded-2xl border border-border bg-surface p-6 text-center text-sm text-muted">
-        No trophies match the current filters.
+        沒有符合目前篩選條件的獎盃。
       </p>
     )
   }
@@ -15,13 +15,13 @@ export function TrophyTable({ rows }: { rows: DataRow[] }) {
       <table className="w-full min-w-[640px] border-collapse text-sm">
         <thead className="sticky top-0 bg-surface">
           <tr className="text-left text-xs uppercase tracking-wide text-muted">
-            <th className="px-3 py-2">Game</th>
-            <th className="px-3 py-2">Trophy</th>
-            <th className="px-3 py-2" title="Sorted by newest earned first">
-              Earned ↓
+            <th className="px-3 py-2">遊戲</th>
+            <th className="px-3 py-2">獎盃</th>
+            <th className="px-3 py-2" title="依最近取得時間排序">
+              取得時間 ↓
             </th>
-            <th className="px-3 py-2">Grade</th>
-            <th className="px-3 py-2">Rarity</th>
+            <th className="px-3 py-2">類型</th>
+            <th className="px-3 py-2">稀有度</th>
           </tr>
         </thead>
         <tbody>
@@ -38,7 +38,7 @@ export function TrophyTable({ rows }: { rows: DataRow[] }) {
               </td>
               <td className="whitespace-nowrap px-3 py-2 text-muted">
                 {row.parsedDate
-                  ? row.parsedDate.toLocaleDateString('en-US', {
+                  ? row.parsedDate.toLocaleDateString('zh-TW', {
                       year: 'numeric',
                       month: 'short',
                       day: 'numeric',
@@ -53,7 +53,7 @@ export function TrophyTable({ rows }: { rows: DataRow[] }) {
                     borderColor: GRADE_COLOR_VAR[row.grade],
                   }}
                 >
-                  {row.grade}
+                  {GRADE_LABEL[row.grade]}
                 </span>
               </td>
               <td className="whitespace-nowrap px-3 py-2 text-muted">

@@ -5,6 +5,9 @@ import { LandingPage } from './pages/LandingPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 
 const DataPage = lazy(() => import('./pages/DataPage').then((module) => ({ default: module.DataPage })))
+const AdvisorPage = lazy(() =>
+  import('./pages/AdvisorPage').then((module) => ({ default: module.AdvisorPage })),
+)
 const GameDetailPage = lazy(() =>
   import('./pages/GameDetailPage').then((module) => ({ default: module.GameDetailPage })),
 )
@@ -22,12 +25,13 @@ const TimelinePage = lazy(() =>
 function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<p className="p-6 text-sm text-muted">Loading page…</p>}>
+      <Suspense fallback={<p className="p-6 text-sm text-muted">正在載入頁面…</p>}>
         <Routes>
           <Route element={<AppLayout />}>
             <Route index element={<LandingPage />} />
             <Route path="u/:username" element={<OverviewPage />} />
             <Route path="u/:username/games" element={<GamesPage />} />
+            <Route path="u/:username/advisor" element={<AdvisorPage />} />
             <Route path="u/:username/games/detail" element={<GameDetailPage />} />
             <Route path="u/:username/timeline" element={<TimelinePage />} />
             <Route path="u/:username/milestones" element={<MilestonesPage />} />

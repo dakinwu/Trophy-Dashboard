@@ -159,3 +159,13 @@ def test_page_is_ready_for_terminal_not_found_page():
     </html>
     """
     assert _page_is_ready(html)
+
+
+def test_page_is_ready_for_empty_game_search():
+    html = """
+    <html>
+      <head><title>Search • PSNProfiles.com</title></head>
+      <body><h2>We couldn't find anything</h2></body>
+    </html>
+    """
+    assert _page_is_ready(html)

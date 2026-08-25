@@ -5,6 +5,7 @@ import logging
 import re
 import threading
 import time
+from contextlib import suppress
 from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
@@ -32,6 +33,7 @@ _ERROR_MARKERS = (
     "no games found",
     "no game found",
     "couldn't find any guides",
+    "couldn't find anything",
     "page could not be found",
 )
 
@@ -198,7 +200,30 @@ class NodriverSession:
         try:
             if self._browser is not None:
                 try:
-                    self._browser.stop()
+                    browser = self._browser
+
+                    async def shutdown_browser() -> None:
+                        # nodriver.stop() only schedules aclose() and our
+                        # synchronous wrapper used to close the loop before
+                        # those tasks ran. Close every websocket explicitly so
+                        # Chrome exits without pending-task error floods.
+                        for tab in list(browser.tabs):
+                            with suppress(Exception):
+                                await tab.aclose()
+                        with suppress(Exception):
+                            await browser.aclose()
+
+                        process = getattr(browser, "_process", None)
+                        if process is not None and process.returncode is None:
+                            process.terminate()
+                            try:
+                                await asyncio.wait_for(process.wait(), timeout=5)
+                            except TimeoutError:
+                                process.kill()
+                                await process.wait()
+
+                    if self._loop is not None and not self._loop.is_closed():
+                        self._loop.run_until_complete(shutdown_browser())
                 except Exception:
                     logger.debug("nodriver browser cleanup failed", exc_info=True)
         finally:

@@ -10,7 +10,7 @@ export function LoadingProgress({ username }: { username: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-surface p-10 text-center">
       <Spinner />
-      <p className="magic-shimmer-text text-sm font-medium">Fetching {username}'s trophies…</p>
+      <p className="magic-shimmer-text text-sm font-medium">正在取得 {username} 的獎盃資料…</p>
     </div>
   )
 }

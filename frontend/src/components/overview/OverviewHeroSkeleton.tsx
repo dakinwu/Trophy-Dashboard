@@ -41,10 +41,9 @@ export function OverviewHeroSkeleton({ username }: { username: string }) {
         </div>
       </div>
       <div className="mt-5 border-t border-border/60 pt-4">
-        <p className="text-sm font-medium text-text">Loading {username}'s profile and trophy library…</p>
+        <p className="text-sm font-medium text-text">正在載入 {username} 的玩家資料與獎盃收藏庫…</p>
         <p className="mt-1 max-w-2xl text-xs leading-5 text-muted">
-          First-time public profile lookups can take longer and may open a visible Chrome window
-          while PSNProfiles is being accessed.
+          第一次查詢公開玩家可能需要較長時間；存取 PSNProfiles 時可能會開啟可見的 Chrome 視窗。
         </p>
       </div>
     </section>

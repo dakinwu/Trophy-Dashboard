@@ -9,6 +9,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { MonthlyGradeCounts } from '../../lib/timeline'
+import { GRADE_LABEL } from '../../lib/trophy'
 
 const BARS: { key: 'Bronze' | 'Silver' | 'Gold' | 'Platinum'; color: string }[] = [
   { key: 'Bronze', color: 'var(--bronze)' },
@@ -20,7 +21,7 @@ const BARS: { key: 'Bronze' | 'Silver' | 'Gold' | 'Platinum'; color: string }[] 
 /** Monthly trophies-earned bar chart, stacked bottom-to-top: Bronze, Silver, Gold, Platinum. */
 export function MonthlyTrophyChart({ data }: { data: MonthlyGradeCounts[] }) {
   if (data.length === 0) {
-    return <p className="text-sm text-muted">No dated trophies to chart yet.</p>
+    return <p className="text-sm text-muted">目前沒有可繪製的獎盃日期資料。</p>
   }
 
   const width = Math.max(600, data.length * 44)
@@ -56,7 +57,7 @@ export function MonthlyTrophyChart({ data }: { data: MonthlyGradeCounts[] }) {
             />
             <Legend wrapperStyle={{ color: 'var(--muted)', fontSize: 12 }} />
             {BARS.map((bar) => (
-              <Bar key={bar.key} dataKey={bar.key} stackId="grade" fill={bar.color} />
+              <Bar key={bar.key} dataKey={bar.key} name={GRADE_LABEL[bar.key]} stackId="grade" fill={bar.color} />
             ))}
           </BarChart>
         </ResponsiveContainer>

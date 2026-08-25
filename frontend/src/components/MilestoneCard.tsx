@@ -16,7 +16,7 @@ export function MilestoneCard({ milestone }: { milestone: Milestone }) {
         {milestone.game}
       </p>
       <p className="text-xs text-muted">
-        {milestone.date.toLocaleDateString('en-US', {
+        {milestone.date.toLocaleDateString('zh-TW', {
           year: 'numeric',
           month: 'short',
           day: 'numeric',

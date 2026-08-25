@@ -52,11 +52,11 @@ export interface OverviewHeroViewModel {
 
 const GRADE_ORDER: TrophyGrade[] = ['Platinum', 'Gold', 'Silver', 'Bronze']
 const RARITY_BUCKETS = [
-  { label: 'Ultra Rare', maxPercent: 5 },
-  { label: 'Very Rare', maxPercent: 10 },
-  { label: 'Rare', maxPercent: 20 },
-  { label: 'Uncommon', maxPercent: 50 },
-  { label: 'Common', maxPercent: Number.POSITIVE_INFINITY },
+  { label: '極度稀有', maxPercent: 5 },
+  { label: '非常稀有', maxPercent: 10 },
+  { label: '稀有', maxPercent: 20 },
+  { label: '不常見', maxPercent: 50 },
+  { label: '常見', maxPercent: Number.POSITIVE_INFINITY },
 ] as const
 
 function parseNumber(value: string | undefined): number | null {
@@ -112,13 +112,13 @@ function metricList(
   const counts = data.profile_summary.total_trophies
   const stats = data.profile_summary.stats
   const metrics: HeroMetric[] = [
-    { key: 'platinum', label: 'Platinum', value: counts.platinum, numeric: true, tone: 'platinum' },
-    { key: 'total', label: 'Total trophies', value: counts.total, numeric: true, tone: 'accent' },
+    { key: 'platinum', label: '白金獎盃', value: counts.platinum, numeric: true, tone: 'platinum' },
+    { key: 'total', label: '獎盃總數', value: counts.total, numeric: true, tone: 'accent' },
   ]
   if (gamesPlayed !== null) {
     metrics.push({
       key: 'games',
-      label: 'Games played',
+      label: '遊玩過的遊戲',
       value: gamesPlayed,
       numeric: true,
       tone: 'text',
@@ -128,7 +128,7 @@ function metricList(
   if (stats.Completion) {
     metrics.push({
       key: 'completion',
-      label: 'Completion',
+      label: '完成率',
       value: stats.Completion,
       numeric: false,
       tone: 'accent',
@@ -136,18 +136,18 @@ function metricList(
   } else if (stats.Playtime) {
     metrics.push({
       key: 'playtime',
-      label: 'Real playtime',
+      label: '實際遊玩時間',
       value: stats.Playtime,
       numeric: false,
       tone: 'accent',
-      detail: 'Official PSN',
+      detail: 'PSN 官方',
     })
   } else {
     const ultraRare = rarityBuckets[0]?.count ?? 0
     if (raritySourceLabel && ultraRare > 0) {
       metrics.push({
         key: 'ultra-rare',
-        label: 'Ultra Rare',
+        label: '極度稀有',
         value: ultraRare,
         numeric: true,
         tone: 'accent',
@@ -186,7 +186,7 @@ export function buildOverviewHeroViewModel(data: ProfileData): OverviewHeroViewM
     levelProgress: parseNumber(summary.stats['Level Progress']),
     source,
     sourceLabel:
-      source === 'psn' ? 'Official PSN' : source === 'psnprofiles' ? 'PSNProfiles' : 'Source unavailable',
+      source === 'psn' ? 'PSN 官方' : source === 'psnprofiles' ? 'PSNProfiles' : '來源無法取得',
     cacheStatus: data.cache_status ?? 'unknown',
     fetchedAt: fetchedAt && !Number.isNaN(fetchedAt.getTime()) ? fetchedAt : null,
     metrics: metricList(data, gamesPlayed, rarityBuckets, raritySourceLabel),

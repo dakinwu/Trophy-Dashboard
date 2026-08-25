@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { getActivityYears, getHeatmapLevel } from '../../lib/timeline'
 import { toDateKey } from '../../lib/trophy'
 
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六']
 const LEVEL_ACCENT_PERCENT = [0, 28, 52, 74, 100]
 
 interface DayCell {
@@ -56,7 +56,7 @@ export function CalendarHeatmap({ dailyActivity }: { dailyActivity: Map<string, 
   }, [weeks])
 
   if (selectedYear === null) {
-    return <p className="text-sm text-muted">No dated trophies to chart yet.</p>
+    return <p className="text-sm text-muted">目前沒有可繪製的獎盃日期資料。</p>
   }
 
   return (
@@ -84,7 +84,7 @@ export function CalendarHeatmap({ dailyActivity }: { dailyActivity: Map<string, 
           <div className="flex flex-col gap-[3px] pr-1 text-[10px] text-muted">
             {WEEKDAY_LABELS.map((label, index) => (
               <span key={label} className="h-[11px] leading-[11px]">
-                {index % 2 === 1 ? label.slice(0, 3) : ''}
+                {index % 2 === 1 ? label : ''}
               </span>
             ))}
           </div>
@@ -95,7 +95,7 @@ export function CalendarHeatmap({ dailyActivity }: { dailyActivity: Map<string, 
                 return (
                   <div
                     key={day.key}
-                    title={day.inYear ? `${day.key}: ${day.count} trophies` : undefined}
+                    title={day.inYear ? `${day.key}：${day.count} 座獎盃` : undefined}
                     className="h-[11px] w-[11px] rounded-[2px]"
                     style={{
                       backgroundColor: !day.inYear
@@ -114,7 +114,7 @@ export function CalendarHeatmap({ dailyActivity }: { dailyActivity: Map<string, 
       </div>
 
       <div className="flex items-center gap-1 self-end text-[11px] text-muted">
-        <span>Less</span>
+        <span>較少</span>
         {LEVEL_ACCENT_PERCENT.map((percent, index) => (
           <span
             key={index}
@@ -127,7 +127,7 @@ export function CalendarHeatmap({ dailyActivity }: { dailyActivity: Map<string, 
             }}
           />
         ))}
-        <span>More</span>
+        <span>較多</span>
       </div>
     </div>
   )

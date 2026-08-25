@@ -22,7 +22,7 @@ export function getMonthlyGradeCounts(trophies: Trophy[]): MonthlyGradeCounts[] 
     if (!entry) {
       entry = {
         monthKey: key,
-        monthLabel: trophy.parsedDate.toLocaleDateString('en-US', {
+        monthLabel: trophy.parsedDate.toLocaleDateString('zh-TW', {
           month: 'short',
           year: 'numeric',
         }),

@@ -2,7 +2,7 @@ import { Button, Input } from '@heroui/react'
 import type { ChangeEvent } from 'react'
 import type { TrophyGrade } from '../lib/api'
 import { ALL_GRADES, type DataFilters } from '../lib/dataTable'
-import { GRADE_COLOR_VAR } from '../lib/trophy'
+import { GRADE_COLOR_VAR, GRADE_LABEL } from '../lib/trophy'
 
 interface TrophyFiltersProps {
   filters: DataFilters
@@ -34,20 +34,20 @@ export function TrophyFilters({ filters, onChange }: TrophyFiltersProps) {
     <div className="flex flex-wrap items-end gap-4 rounded-2xl border border-border bg-surface p-4">
       <div className="flex flex-col gap-1">
         <label htmlFor="game-search" className="text-xs uppercase tracking-wide text-muted">
-          Game
+          遊戲
         </label>
         <Input
           id="game-search"
           value={filters.search}
           onChange={handleSearch}
-          placeholder="Search games..."
+          placeholder="搜尋遊戲…"
           variant="secondary"
           className="w-48"
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-xs uppercase tracking-wide text-muted">Grade</span>
+        <span className="text-xs uppercase tracking-wide text-muted">獎盃類型</span>
         <div className="flex gap-1.5">
           {ALL_GRADES.map((grade) => {
             const active = filters.grades.has(grade)
@@ -66,7 +66,7 @@ export function TrophyFilters({ filters, onChange }: TrophyFiltersProps) {
                   opacity: active ? 1 : 0.6,
                 }}
               >
-                {grade}
+                {GRADE_LABEL[grade]}
               </Button>
             )
           })}
@@ -75,7 +75,7 @@ export function TrophyFilters({ filters, onChange }: TrophyFiltersProps) {
 
       <div className="flex flex-col gap-1">
         <label htmlFor="date-from" className="text-xs uppercase tracking-wide text-muted">
-          From
+          開始日期
         </label>
         <Input
           id="date-from"
@@ -88,7 +88,7 @@ export function TrophyFilters({ filters, onChange }: TrophyFiltersProps) {
 
       <div className="flex flex-col gap-1">
         <label htmlFor="date-to" className="text-xs uppercase tracking-wide text-muted">
-          To
+          結束日期
         </label>
         <Input
           id="date-to"

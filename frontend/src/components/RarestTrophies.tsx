@@ -17,8 +17,8 @@ export function RarestTrophies({ trophies }: { trophies: Trophy[] }) {
     <section className="relative overflow-hidden rounded-2xl border border-border bg-surface p-5">
       <BorderBeam size={110} duration={13} delay={7} reverse colorTo="var(--bronze)" />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-text">Rarest Trophies</h2>
-        <div className="flex rounded-lg border border-border bg-bg/50 p-1" aria-label="Rarity source">
+        <h2 className="text-lg font-semibold text-text">最稀有獎盃</h2>
+        <div className="flex rounded-lg border border-border bg-bg/50 p-1" aria-label="稀有度來源">
           {(['psn', 'psnprofiles'] as const).map((value) => (
             <button
               key={value}
@@ -32,21 +32,21 @@ export function RarestTrophies({ trophies }: { trophies: Trophy[] }) {
                   : 'text-muted hover:text-text',
               ].join(' ')}
             >
-              {value === 'psn' ? 'PSN official' : 'PSNProfiles'}
+              {value === 'psn' ? 'PSN 官方' : 'PSNProfiles'}
             </button>
           ))}
         </div>
       </div>
       <p className="mb-3 text-xs text-muted">
         {source === 'psn'
-          ? `Official rarity coverage: ${coverage.toLocaleString()} of ${trophies.length.toLocaleString()} earned trophies.`
-          : `Cached PSNProfiles coverage: ${coverage.toLocaleString()} of ${trophies.length.toLocaleString()} earned trophies. Open a game's trophy page to add its tracked-player data.`}
+          ? `PSN 官方稀有度涵蓋 ${coverage.toLocaleString()}／${trophies.length.toLocaleString()} 座已取得獎盃。`
+          : `PSNProfiles 快取涵蓋 ${coverage.toLocaleString()}／${trophies.length.toLocaleString()} 座已取得獎盃；開啟個別遊戲的獎盃頁面即可補充追蹤玩家資料。`}
       </p>
       {rarest.length === 0 ? (
         <p className="text-sm text-muted">
           {source === 'psnprofiles'
-            ? 'No cached PSNProfiles rarity data is available yet.'
-            : 'No official trophy rarity data is available.'}
+            ? '目前還沒有可用的 PSNProfiles 稀有度快取。'
+            : '目前沒有 PSN 官方獎盃稀有度資料。'}
         </p>
       ) : (
         <ul className="flex flex-col gap-2">

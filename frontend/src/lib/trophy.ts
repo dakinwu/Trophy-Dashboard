@@ -8,6 +8,13 @@ export const GRADE_COLOR_VAR: Record<TrophyGrade, string> = {
   Bronze: 'var(--bronze)',
 }
 
+export const GRADE_LABEL: Record<TrophyGrade, string> = {
+  Platinum: '白金',
+  Gold: '金',
+  Silver: '銀',
+  Bronze: '銅',
+}
+
 /** Parses a rarity string like "2.5%" into a number (2.5). Returns +Infinity if unparseable. */
 export function parseRarityPercent(rarityPercent: string): number {
   const value = Number.parseFloat(rarityPercent.replace('%', '').trim())
@@ -28,7 +35,7 @@ export function formatTrophyRarity(trophy: Trophy): string {
       ? 'PSN'
       : trophy.rarity_source === 'psnprofiles'
         ? 'PSNP'
-        : 'Rarity'
+        : '稀有度'
   return `${label} ${trophy.rarity_percent}`
 }
 
@@ -202,9 +209,9 @@ export function getFastestPlatinumsByGame(trophies: Trophy[]): FastestPlatinumRe
 /** Formats a millisecond duration as a compact human string, e.g. "3d 4h". */
 export function formatDuration(ms: number): string {
   const totalMinutes = Math.round(ms / 60_000)
-  if (totalMinutes < 60) return `${totalMinutes}m`
+  if (totalMinutes < 60) return `${totalMinutes} 分鐘`
   const totalHours = Math.floor(totalMinutes / 60)
-  if (totalHours < 24) return `${totalHours}h ${totalMinutes % 60}m`
+  if (totalHours < 24) return `${totalHours} 小時 ${totalMinutes % 60} 分鐘`
   const days = Math.floor(totalHours / 24)
-  return `${days}d ${totalHours % 24}h`
+  return `${days} 天 ${totalHours % 24} 小時`
 }

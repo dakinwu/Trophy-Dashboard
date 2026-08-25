@@ -3,11 +3,12 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, NavLink, useMatch, useNavigate } from 'react-router-dom'
 
 const NAV_ITEMS = [
-  { label: 'Overview', subpath: '' },
-  { label: 'Games', subpath: '/games' },
-  { label: 'Timeline', subpath: '/timeline' },
-  { label: 'Milestones', subpath: '/milestones' },
-  { label: 'Data', subpath: '/data' },
+  { label: '總覽', subpath: '' },
+  { label: '遊戲', subpath: '/games' },
+  { label: '獎盃顧問', subpath: '/advisor' },
+  { label: '時間軸', subpath: '/timeline' },
+  { label: '里程碑', subpath: '/milestones' },
+  { label: '資料', subpath: '/data' },
 ]
 
 /**
@@ -40,7 +41,7 @@ export function TopNav() {
           className="flex shrink-0 items-center gap-2 text-lg font-semibold text-text"
         >
           <span aria-hidden="true">🏆</span>
-          <span>Trophy Hunter</span>
+          <span>獎盃獵人</span>
         </Link>
 
         <form
@@ -51,7 +52,7 @@ export function TopNav() {
             id="global-psn-id-search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="PSN ID..."
+            placeholder="輸入 PSN ID…"
             aria-label="PSN ID"
             variant="secondary"
             fullWidth
@@ -63,7 +64,7 @@ export function TopNav() {
             variant="primary"
             className="shrink-0"
           >
-            Analyze
+            查詢
           </Button>
         </form>
 

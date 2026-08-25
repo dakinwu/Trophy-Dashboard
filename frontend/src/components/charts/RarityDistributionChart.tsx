@@ -5,7 +5,7 @@ import type { RarityBucket } from '../../lib/games'
 export function RarityDistributionChart({ data }: { data: RarityBucket[] }) {
   const hasData = data.some((bucket) => bucket.count > 0)
   if (!hasData) {
-    return <p className="text-sm text-muted">No rarity data available.</p>
+    return <p className="text-sm text-muted">目前沒有稀有度資料。</p>
   }
 
   return (
@@ -35,7 +35,7 @@ export function RarityDistributionChart({ data }: { data: RarityBucket[] }) {
             }}
             labelStyle={{ color: 'var(--text)' }}
           />
-          <Bar dataKey="count" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="count" name="獎盃數" fill="var(--accent)" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

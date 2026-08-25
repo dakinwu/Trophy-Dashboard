@@ -19,13 +19,13 @@ export function PlatinumMosaic({
     <section className="relative overflow-hidden rounded-2xl border border-border bg-surface p-5">
       <BorderBeam size={110} duration={13} delay={3} colorFrom="var(--platinum)" />
       <h2 className="mb-4 text-lg font-semibold text-text">
-        {usesGameSummaries ? 'Platinum Games' : 'Platinum Trophies'}
+        {usesGameSummaries ? '白金遊戲' : '白金獎盃'}
       </h2>
       {usesGameSummaries ? (
         <>
           <p className="mb-3 text-xs text-muted">
-            Showing {platinumGames.length.toLocaleString()} publicly visible platinum games
-            {totalPlatinums ? ` out of ${totalPlatinums.toLocaleString()} total platinums` : ''}.
+            顯示 {platinumGames.length.toLocaleString()} 款公開可見的白金遊戲
+            {totalPlatinums ? `／共 ${totalPlatinums.toLocaleString()} 座白金` : ''}。
           </p>
           <div className="grid max-h-[32rem] grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3">
             {platinumGames.map((game) => (
@@ -46,7 +46,7 @@ export function PlatinumMosaic({
           </div>
         </>
       ) : platinums.length === 0 ? (
-        <p className="text-sm text-muted">No platinum trophies yet.</p>
+        <p className="text-sm text-muted">目前尚未取得白金獎盃。</p>
       ) : (
         <div className="grid grid-cols-4 gap-3 sm:grid-cols-6 md:grid-cols-8">
           {platinums.map((trophy, index) => (

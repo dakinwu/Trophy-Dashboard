@@ -103,8 +103,8 @@ async function parseErrorMessage(res: Response): Promise<string> {
   return res.statusText || `Request failed with status ${res.status}`
 }
 
-async function requestJson<T>(url: string): Promise<T> {
-  const res = await fetch(url)
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init)
   if (!res.ok) {
     throw new ApiError(res.status, await parseErrorMessage(res))
   }
@@ -121,6 +121,30 @@ export function getProfile(username: string, refresh = false): Promise<ProfileDa
   const qs = params.toString()
   const url = `/api/profile/${encodeURIComponent(username)}${qs ? `?${qs}` : ''}`
   return requestJson<ProfileData>(url)
+}
+
+export function getAdvisorLibrary(
+  username: string,
+  refresh = false,
+): Promise<AdvisorLibrary> {
+  const params = new URLSearchParams()
+  if (refresh) params.set('refresh', 'true')
+  const qs = params.toString()
+  return requestJson<AdvisorLibrary>(
+    `/api/profile/${encodeURIComponent(username)}/advisor${qs ? `?${qs}` : ''}`,
+  )
+}
+
+export function getAdvisorSignals(
+  candidates: AdvisorCandidate[],
+  cachedOnly = false,
+): Promise<AdvisorBatchResponse> {
+  const suffix = cachedOnly ? '?cached_only=true' : ''
+  return requestJson<AdvisorBatchResponse>(`/api/psnprofiles/advisor${suffix}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ candidates }),
+  })
 }
 
 export function getGameDetail(username: string, game: string): Promise<GameTrophyDetail> {
@@ -182,6 +206,104 @@ export interface PsnprofilesTrophyList {
   platform: string
   game_url: string
   trophies: PsnprofilesTrophy[]
+  owners?: number | null
+  average_completion?: number | null
+  platinum_achievers?: number | null
+  platinum_rate?: number | null
+}
+
+export type AdvisorGameStatus = 'unplayed' | 'in_progress' | 'completed'
+export type AdvisorGameSource = 'purchased' | 'ps_plus' | 'other'
+export type AdvisorAutopopStatus = 'full' | 'partial' | 'none' | 'unknown'
+
+export interface AdvisorGame {
+  title_id: string
+  product_id: string | null
+  concept_id: string | null
+  name: string
+  platform: Platform
+  available_platforms: Platform[]
+  image_url: string | null
+  source: AdvisorGameSource
+  is_downloadable: boolean
+  is_preorder: boolean
+  library_index: number
+  played: boolean
+  status: AdvisorGameStatus
+  progress: number | null
+  playtime_seconds: number | null
+  earned_trophies: number | null
+  defined_trophies: number | null
+  earned_platinum: number | null
+  trophy_title: string | null
+  ps4_platinum_earned: boolean
+  ps4_to_ps5_autopop: AdvisorAutopopStatus | null
+  autopop_note: string | null
+  autopop_source_url: string | null
+  autopop_verified_at: string | null
+}
+
+export interface AdvisorLibrary {
+  username: string
+  games: AdvisorGame[]
+  total_count: number
+  unplayed_count: number
+  in_progress_count: number
+  completed_count: number
+  excluded_trial_count: number
+  excluded_content_count: number
+  excluded_platinum_count: number
+  merged_platform_count: number
+  cache_status: 'live' | 'cached'
+  fetched_at: string | null
+  source: 'official_psn'
+  title_resolver: 'gemini' | 'source_title'
+}
+
+export interface AdvisorCandidate {
+  game: string
+  platform?: Platform | null
+  aliases?: string[]
+  title_id?: string | null
+  product_id?: string | null
+}
+
+export interface PsnprofilesAdvisorSignals {
+  title: string
+  platform: string
+  game_url: string
+  owners: number | null
+  average_completion: number | null
+  platinum_achievers: number | null
+  platinum_rate: number | null
+}
+
+export interface AdvisorBundleChildResult {
+  game: string
+  platform: Platform | null
+  signals: PsnprofilesAdvisorSignals | null
+  error: string | null
+}
+
+export interface AdvisorBundleResult {
+  source: 'curated' | 'gemini_grounding'
+  source_urls: string[]
+  verified_at: string
+  children: AdvisorBundleChildResult[]
+  complete: boolean
+}
+
+export interface AdvisorSignalResult {
+  game: string
+  platform: Platform | null
+  signals: PsnprofilesAdvisorSignals | null
+  bundle: AdvisorBundleResult | null
+  error: string | null
+  retryable: boolean
+}
+
+export interface AdvisorBatchResponse {
+  results: AdvisorSignalResult[]
 }
 
 /** On-demand PSNProfiles rankings; null if the profile is unavailable. */
@@ -267,7 +389,7 @@ export function subscribeToProfileStream(
       try {
         handlers.onError?.(JSON.parse(event.data) as StreamErrorEvent)
       } catch {
-        handlers.onError?.({ error: 'Unknown stream error' })
+        handlers.onError?.({ error: '未知的串流錯誤' })
       }
       source.close()
       return
