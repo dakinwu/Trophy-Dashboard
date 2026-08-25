@@ -56,7 +56,7 @@ function GamesContent({
   )
 
   if (summaries.length === 0) {
-    return <ErrorState title="No games yet" message="This profile has no logged trophies." />
+    return <ErrorState title="尚無遊戲" message="這位玩家目前沒有獎盃紀錄。" />
   }
 
   return (
@@ -64,11 +64,11 @@ function GamesContent({
       <section>
         <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
           <div>
-            <h1 className="text-lg font-semibold text-text">Games</h1>
-            <p className="mt-1 text-xs text-muted">Sorted by your latest earned trophy.</p>
+            <h1 className="text-lg font-semibold text-text">遊戲</h1>
+            <p className="mt-1 text-xs text-muted">依最近取得獎盃的時間排序。</p>
           </div>
           <span className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold tabular-nums text-accent">
-            {summaries.length.toLocaleString()} games
+            {summaries.length.toLocaleString()} 款遊戲
           </span>
         </div>
         <div className="grid items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
@@ -79,11 +79,11 @@ function GamesContent({
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-text">Insights</h2>
+        <h2 className="text-lg font-semibold text-text">統計分析</h2>
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-2xl border border-border bg-surface p-5">
             <h3 className="mb-4 text-sm font-semibold text-text">
-              Rarity Distribution
+              稀有度分布
               {raritySourceLabel && (
                 <span className="ml-1 font-normal text-muted">· {raritySourceLabel}</span>
               )}
@@ -91,11 +91,11 @@ function GamesContent({
             <RarityDistributionChart data={rarityDistribution} />
           </div>
           <div className="rounded-2xl border border-border bg-surface p-5">
-            <h3 className="mb-4 text-sm font-semibold text-text">Top Games by Trophies</h3>
+            <h3 className="mb-4 text-sm font-semibold text-text">取得獎盃最多的遊戲</h3>
             <TopGamesDonut data={topGames} />
           </div>
           <div className="rounded-2xl border border-border bg-surface p-5 lg:col-span-2">
-            <h3 className="mb-4 text-sm font-semibold text-text">Fastest Platinums</h3>
+            <h3 className="mb-4 text-sm font-semibold text-text">最快取得白金</h3>
             <FastestPlatinumsChart data={fastestPlatinums} />
           </div>
         </div>

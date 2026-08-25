@@ -4,20 +4,13 @@ import { Link } from 'react-router-dom'
 import type { TrophyGrade } from '../lib/api'
 import type { GameSummary } from '../lib/games'
 import { formatPlaytime } from '../lib/games'
-import { GRADE_COLOR_VAR } from '../lib/trophy'
+import { GRADE_COLOR_VAR, GRADE_LABEL } from '../lib/trophy'
 import { useHltb, usePsnprofilesGuide } from '../lib/queries'
 import { ExternalLinks } from './ExternalLinks'
 import { MagicCard } from './magicui/MagicCard'
 import { PlatformLogos } from './PlatformLogos'
 
 const GRADE_ORDER: TrophyGrade[] = ['Platinum', 'Gold', 'Silver', 'Bronze']
-const GRADE_SHORT_LABEL: Record<TrophyGrade, string> = {
-  Platinum: 'P',
-  Gold: 'G',
-  Silver: 'S',
-  Bronze: 'B',
-}
-
 export function GameCard({ summary, username }: { summary: GameSummary; username: string }) {
   const [guideRequested, setGuideRequested] = useState(false)
   const hltb = useHltb(summary.displayName)
@@ -25,12 +18,12 @@ export function GameCard({ summary, username }: { summary: GameSummary; username
   const guide = psnprofilesGuide.data
   const detailUrl = `/u/${encodeURIComponent(username)}/games/detail?game=${encodeURIComponent(summary.game)}`
   const lastEarned = summary.lastEarnedDate
-    ? summary.lastEarnedDate.toLocaleDateString('en-US', {
+    ? summary.lastEarnedDate.toLocaleDateString('zh-TW', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
       })
-    : 'Unknown'
+    : '未知'
 
   return (
     <MagicCard className="h-full rounded-2xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(0,0,0,0.32)]">
@@ -38,7 +31,7 @@ export function GameCard({ summary, username }: { summary: GameSummary; username
         <Link
           to={detailUrl}
           className="group/header relative overflow-hidden border-b border-border/70 p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
-          aria-label={`View ${summary.displayName} trophies`}
+          aria-label={`查看 ${summary.displayName} 的獎盃`}
         >
           <div
             aria-hidden="true"
@@ -68,7 +61,7 @@ export function GameCard({ summary, username }: { summary: GameSummary; username
                 <PlatformLogos platforms={summary.platforms} />
                 {summary.hasPlatinum && (
                   <span className="rounded-md border border-platinum/60 bg-platinum/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-platinum shadow-[0_0_18px_rgba(90,182,240,0.12)]">
-                    ✦ Platinum
+                    ✦ 白金
                   </span>
                 )}
               </div>
@@ -80,24 +73,24 @@ export function GameCard({ summary, username }: { summary: GameSummary; username
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-                Earned trophies
+                已取得獎盃
               </p>
               <p className="mt-0.5 text-2xl font-bold tabular-nums text-text">
                 {summary.totalEarned.toLocaleString()}
               </p>
             </div>
-            <span className="mb-1 text-[10px] text-muted">Trophy mix</span>
+            <span className="mb-1 text-[10px] text-muted">獎盃組成</span>
           </div>
 
           <div
             className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-bg"
-            aria-label="Earned trophy grade distribution"
+            aria-label="已取得獎盃的類型分布"
           >
             {GRADE_ORDER.map((grade) =>
               summary.counts[grade] > 0 ? (
                 <span
                   key={grade}
-                  title={`${grade}: ${summary.counts[grade]}`}
+                  title={`${GRADE_LABEL[grade]}：${summary.counts[grade]}`}
                   className="h-full min-w-1"
                   style={{
                     backgroundColor: GRADE_COLOR_VAR[grade],
@@ -113,14 +106,14 @@ export function GameCard({ summary, username }: { summary: GameSummary; username
               <div
                 key={grade}
                 className="flex items-center justify-center gap-1 rounded-lg border px-1.5 py-1.5 text-xs font-bold tabular-nums"
-                title={`${grade}: ${summary.counts[grade]}`}
+                title={`${GRADE_LABEL[grade]}：${summary.counts[grade]}`}
                 style={{
                   color: GRADE_COLOR_VAR[grade],
                   borderColor: `color-mix(in srgb, ${GRADE_COLOR_VAR[grade]} 42%, transparent)`,
                   backgroundColor: `color-mix(in srgb, ${GRADE_COLOR_VAR[grade]} 8%, transparent)`,
                 }}
               >
-                <span className="text-[9px] font-black opacity-75">{GRADE_SHORT_LABEL[grade]}</span>
+                <span className="text-[9px] font-black opacity-75">{GRADE_LABEL[grade]}</span>
                 {summary.counts[grade]}
               </div>
             ))}
@@ -128,17 +121,17 @@ export function GameCard({ summary, username }: { summary: GameSummary; username
 
           <div className="mt-4 grid grid-cols-2 gap-2">
             <div className="rounded-lg border border-border/70 bg-bg/35 p-2.5">
-              <p className="text-[10px] uppercase tracking-wide text-muted">Last earned</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted">最近取得</p>
               <p className="mt-1 truncate text-xs font-semibold text-text" title={lastEarned}>
                 {lastEarned}
               </p>
             </div>
             <div className="rounded-lg border border-border/70 bg-bg/35 p-2.5">
-              <p className="text-[10px] uppercase tracking-wide text-muted">Playtime</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted">遊玩時間</p>
               <p className="mt-1 text-xs font-semibold text-accent">
                 {summary.playtimeSeconds != null
                   ? formatPlaytime(summary.playtimeSeconds)
-                  : 'Unavailable'}
+                  : '無法取得'}
               </p>
             </div>
           </div>
@@ -147,11 +140,11 @@ export function GameCard({ summary, username }: { summary: GameSummary; username
             <div className="mt-2 rounded-lg border border-border/70 bg-bg/35 px-3 py-2 text-xs text-muted">
               <span className="font-semibold text-text">HLTB</span>
               <span className="mx-1.5 text-border">·</span>
-              <span className="text-text">{Math.round(hltb.data.main_story)}h</span> main
+              <span className="text-text">{Math.round(hltb.data.main_story)} 小時</span> 主線
               {hltb.data.completionist > 0 && (
                 <>
                   <span className="mx-1.5 text-border">·</span>
-                  <span className="text-text">{Math.round(hltb.data.completionist)}h</span> 100%
+                  <span className="text-text">{Math.round(hltb.data.completionist)} 小時</span> 全完成
                 </>
               )}
             </div>
@@ -171,7 +164,7 @@ export function GameCard({ summary, username }: { summary: GameSummary; username
               to={detailUrl}
               className="group flex w-full items-center justify-between rounded-lg border border-accent/35 bg-accent/10 px-3 py-2 text-xs font-bold text-accent transition hover:border-accent hover:bg-accent/15 hover:text-accent-bright focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              <span>View trophy list</span>
+              <span>查看獎盃列表</span>
               <span aria-hidden="true" className="transition group-hover:translate-x-0.5">
                 →
               </span>
@@ -185,11 +178,11 @@ export function GameCard({ summary, username }: { summary: GameSummary; username
                 variant="ghost"
                 className="mt-1.5 w-full text-xs text-muted"
               >
-                Load PSNProfiles guide details
+                載入 PSNProfiles 攻略資料
               </Button>
             )}
             {guideRequested && psnprofilesGuide.isFetching && (
-              <p className="mt-2 text-center text-xs text-muted">Loading PSNProfiles guide…</p>
+              <p className="mt-2 text-center text-xs text-muted">正在載入 PSNProfiles 攻略…</p>
             )}
             {guideRequested &&
               !psnprofilesGuide.isFetching &&
@@ -202,13 +195,13 @@ export function GameCard({ summary, username }: { summary: GameSummary; username
                   variant="ghost"
                   className="mt-1.5 w-full text-xs text-muted"
                 >
-                  Guide unavailable · retry
+                  攻略無法取得 · 重試
                 </Button>
               )}
 
             <div className="mt-3 border-t border-border/60 pt-3">
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-                Guides &amp; info
+                攻略與資訊
               </p>
               <ExternalLinks game={summary.displayName} psnprofilesGuideUrl={guide?.guide_url} />
             </div>

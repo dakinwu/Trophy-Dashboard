@@ -16,8 +16,8 @@ export function OverviewPage() {
   if (!username) {
     return (
       <ErrorState
-        title="No profile selected"
-        message="Search for a PSN ID above to get started."
+        title="尚未選擇玩家"
+        message="請先在上方搜尋 PSN ID。"
       />
     )
   }
@@ -31,30 +31,30 @@ export function OverviewPage() {
     if (error instanceof ApiError && error.status === 404) {
       return (
         <ErrorState
-          title="Profile not found"
-          message={`We couldn't find "${username}" on PSNProfiles, or the profile is private.`}
+          title="找不到玩家資料"
+          message={`PSNProfiles 找不到「${username}」，或該玩家的個人資料未公開。`}
         />
       )
     }
     if (error instanceof ApiError && error.status === 502) {
       return (
         <ErrorState
-          title="Error fetching from PSNProfiles"
-          message="PSNProfiles didn't respond correctly. Please try again in a moment."
+          title="PSNProfiles 讀取失敗"
+          message="PSNProfiles 沒有正確回應，請稍後再試。"
         />
       )
     }
     return (
       <ErrorState
-        title="Something went wrong"
-        message={error instanceof Error ? error.message : 'Unknown error.'}
+        title="發生錯誤"
+        message="目前無法載入玩家資料，請稍後再試。"
       />
     )
   }
 
   const data = profileQuery.data
   if (!data) {
-    return <ErrorState title="No data" message="No profile data was returned." />
+    return <ErrorState title="沒有資料" message="資料來源沒有回傳玩家資料。" />
   }
 
   const { profile_summary, trophy_log } = data

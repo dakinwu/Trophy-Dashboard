@@ -75,6 +75,28 @@ upgrade the search link to the exact guide URL after a successful lookup.
   and shared loading indicators now use HeroUI v3 with Trophy Gold semantic
   tokens; bespoke dashboard content remains custom.
 
+### 4. Trophy Advisor
+- ~~Full private library advisor~~ — DONE. The token owner's active digital
+  PS3/PS4/PS5 entitlements are loaded from Sony's PlayStation web library API and
+  cached for 24 hours, including never-launched titles. The Advisor tab filters
+  the library, preserves separate cross-gen editions, and enriches a manually
+  selected batch of up to 50 games with PSNProfiles tracked-owner, average
+  trophy-completion, and platinum statistics. The frontend can automatically
+  continue through every filtered candidate as sequential safe batches. Advisor
+  scores prioritize PSNProfiles platinum rate and log-scaled platinum achievers;
+  general completion and tracked-owner totals remain reference-only. Optional
+  backend-only Gemini 2.5 Flash resolution uses Google Search grounding to convert
+  localized source titles to verified English PSNProfiles search terms and caches
+  them for 180 days. Existing English names consume no Gemini quota; localized
+  names use independently cached grounded batches of up to 12 games.
+  Multi-list collections are expanded into independently scored child games;
+  known mappings are local, while unknown collections use batched Google Search
+  grounding on Gemini 2.5 Flash with the same key and a 180-day cache. Trial, Demo,
+  Beta, playtest, test-version entitlements, and trophy sets where the owner has
+  already earned platinum are excluded before enrichment. Endpoints:
+  `GET /api/profile/{username}/advisor` and `POST /api/psnprofiles/advisor`.
+  Physical discs and inactive entitlements may not appear in Sony's response.
+
 ## Key facts for a fresh session
 - PSN id: **`dakinwu20`**. NPSSO token lives in the **repo-root `.env`** (gitignored;
   `backend/app/config.py` reads the root `.env`).

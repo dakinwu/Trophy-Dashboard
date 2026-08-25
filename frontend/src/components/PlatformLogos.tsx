@@ -44,7 +44,7 @@ const PLATFORM_META: Record<Platform, PlatformMeta> = {
     logoClass: 'brightness-0 invert',
   },
   UNKNOWN: {
-    label: 'PlayStation platform unknown',
+    label: '未知的 PlayStation 平台',
     logo: playstationLogo,
     badgeClass: 'border-white/20 bg-slate-700',
     logoClass: 'brightness-0 invert',
@@ -56,7 +56,7 @@ export function PlatformLogos({ platforms }: { platforms: Platform[] }) {
   const uniquePlatforms = [...new Set<Platform>(sourcePlatforms)]
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1" aria-label="Platforms">
+    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1" aria-label="平台">
       {uniquePlatforms.map((platform) => {
         const meta = PLATFORM_META[platform]
         return (

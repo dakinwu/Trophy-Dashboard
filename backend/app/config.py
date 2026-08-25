@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     # headless automation.
     psnprofiles_headless: bool = False
     psnprofiles_browser_timeout: float = 180.0
+    # Optional: resolves localized PlayStation titles to canonical English names
+    # before Trophy Advisor searches PSNProfiles. Kept backend-only.
+    gemini_api_key: str | None = None
+    # Search-grounded bundle/collection research is deliberately separated
+    # from PSNProfiles scraping while reusing the same backend-only key.
+    gemini_grounding_model: str = "gemini-2.5-flash"
+    gemini_timeout: float = 60.0
 
 
 settings = Settings()

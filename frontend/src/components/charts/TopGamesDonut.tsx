@@ -15,7 +15,7 @@ const DONUT_COLORS = [
 /** Donut chart of the top games by trophies earned, with a color-keyed legend list. */
 export function TopGamesDonut({ data }: { data: TopGameSlice[] }) {
   if (data.length === 0) {
-    return <p className="text-sm text-muted">No games to chart yet.</p>
+    return <p className="text-sm text-muted">目前沒有可繪製的遊戲資料。</p>
   }
 
   return (
@@ -27,6 +27,7 @@ export function TopGamesDonut({ data }: { data: TopGameSlice[] }) {
               data={data}
               dataKey="total"
               nameKey="game"
+              name="獎盃數"
               innerRadius="55%"
               outerRadius="90%"
               paddingAngle={2}

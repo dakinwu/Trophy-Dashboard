@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ApiError,
+  getAdvisorLibrary,
+  getAdvisorSignals,
   getGameDetail,
   getHltb,
   getProfile,
   getPsnprofilesGuide,
   getPsnprofilesStats,
   getPsnprofilesTrophies,
+  type AdvisorBatchResponse,
+  type AdvisorCandidate,
+  type AdvisorLibrary,
   type GameTrophyDetail,
   type HltbTimes,
   type Platform,
@@ -16,6 +21,64 @@ import {
   type PsnprofilesStats,
   type PsnprofilesTrophyList,
 } from './api'
+
+export function useAdvisorLibrary(username: string | undefined) {
+  return useQuery<AdvisorLibrary, ApiError>({
+    queryKey: ['advisor-library', username],
+    queryFn: () => getAdvisorLibrary(username as string),
+    enabled: Boolean(username),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useRefreshAdvisorLibrary(username: string | undefined) {
+  const queryClient = useQueryClient()
+  const mutation = useMutation<AdvisorLibrary, ApiError>({
+    mutationFn: () => getAdvisorLibrary(username as string, true),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['advisor-library', username], data)
+    },
+  })
+  return {
+    refresh: mutation.mutate,
+    refreshing: mutation.isPending,
+    refreshError: mutation.error?.message ?? null,
+  }
+}
+
+export function useAdvisorSignals() {
+  return useMutation<AdvisorBatchResponse, ApiError, AdvisorCandidate[]>({
+    mutationFn: (candidates) => getAdvisorSignals(candidates),
+  })
+}
+
+export function useCachedAdvisorSignals(
+  username: string | undefined,
+  candidates: AdvisorCandidate[],
+) {
+  return useQuery<AdvisorBatchResponse, ApiError>({
+    queryKey: [
+      'advisor-signals-cache',
+      username,
+      candidates.map((candidate) => [candidate.game, candidate.platform]),
+    ],
+    queryFn: async () => {
+      const results: AdvisorBatchResponse['results'] = []
+      for (let start = 0; start < candidates.length; start += 50) {
+        const response = await getAdvisorSignals(
+          candidates.slice(start, start + 50),
+          true,
+        )
+        results.push(...response.results)
+      }
+      return { results }
+    },
+    enabled: Boolean(username) && candidates.length > 0,
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  })
+}
 
 /**
  * Fetches a PSN profile + trophy log for `username` (served from the backend's
@@ -71,7 +134,7 @@ export function useRefreshProfile(username: string | undefined) {
       setRefreshError(
         error instanceof Error
           ? error.message
-          : 'Refresh failed. The existing profile data is still available.',
+          : '重新整理失敗，目前仍可使用原有的玩家資料。',
       )
     } finally {
       refreshLock.current = false

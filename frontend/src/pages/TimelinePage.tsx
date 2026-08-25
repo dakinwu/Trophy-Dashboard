@@ -25,19 +25,19 @@ function TimelineContent({ trophyLog }: { trophyLog: Trophy[] }) {
   const streaks = useMemo(() => getStreakStats(dailyActivity), [dailyActivity])
 
   if (trophyLog.length === 0) {
-    return <ErrorState title="No trophies yet" message="This profile has no logged trophies." />
+    return <ErrorState title="尚無獎盃" message="這位玩家目前沒有獎盃紀錄。" />
   }
 
   return (
     <div className="flex flex-col gap-6">
       <section className="rounded-2xl border border-border bg-surface p-5">
-        <h2 className="mb-4 text-lg font-semibold text-text">Trophies Earned Per Month</h2>
+        <h2 className="mb-4 text-lg font-semibold text-text">每月取得獎盃</h2>
         <MonthlyTrophyChart data={monthlyData} />
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="rounded-2xl border border-border bg-surface p-5">
-          <h2 className="mb-4 text-lg font-semibold text-text">Activity Calendar</h2>
+          <h2 className="mb-4 text-lg font-semibold text-text">活動日曆</h2>
           <CalendarHeatmap dailyActivity={dailyActivity} />
         </div>
 
@@ -45,13 +45,13 @@ function TimelineContent({ trophyLog }: { trophyLog: Trophy[] }) {
           <div className="rounded-xl border border-border bg-surface p-4 text-center shadow-md shadow-black/10">
             <div className="text-2xl font-bold text-accent-bright">{streaks.longest}</div>
             <div className="mt-1 text-xs uppercase tracking-wide text-muted">
-              Longest Streak (days)
+              最長連續天數
             </div>
           </div>
           <div className="rounded-xl border border-border bg-surface p-4 text-center shadow-md shadow-black/10">
             <div className="text-2xl font-bold text-accent-bright">{streaks.current}</div>
             <div className="mt-1 text-xs uppercase tracking-wide text-muted">
-              Current Streak (days)
+              目前連續天數
             </div>
           </div>
         </div>

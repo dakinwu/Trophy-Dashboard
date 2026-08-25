@@ -84,11 +84,11 @@ export interface RarityBucket {
 }
 
 const RARITY_BUCKETS: { label: string; max: number }[] = [
-  { label: 'Ultra Rare', max: 5 },
-  { label: 'Very Rare', max: 10 },
-  { label: 'Rare', max: 20 },
-  { label: 'Uncommon', max: 50 },
-  { label: 'Common', max: Number.POSITIVE_INFINITY },
+  { label: '極度稀有', max: 5 },
+  { label: '非常稀有', max: 10 },
+  { label: '稀有', max: 20 },
+  { label: '不常見', max: 50 },
+  { label: '常見', max: Number.POSITIVE_INFINITY },
 ]
 
 /** Buckets earned trophies by rarity percent: Ultra <=5%, Very <=10%, Rare <=20%, Uncommon <=50%, Common >50%. */
@@ -120,7 +120,7 @@ export function getTopGamesByTrophies(summaries: GameSummary[], count = 8): TopG
 
 /** Formats a playtime in seconds as a compact string, e.g. "241h" or "45m". */
 export function formatPlaytime(seconds: number): string {
-  if (seconds >= 3600) return `${Math.round(seconds / 3600).toLocaleString()}h`
-  if (seconds >= 60) return `${Math.round(seconds / 60)}m`
-  return `${Math.round(seconds)}s`
+  if (seconds >= 3600) return `${Math.round(seconds / 3600).toLocaleString()} 小時`
+  if (seconds >= 60) return `${Math.round(seconds / 60)} 分鐘`
+  return `${Math.round(seconds)} 秒`
 }

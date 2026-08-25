@@ -20,7 +20,7 @@ function DurationTooltip({ active, payload }: DurationTooltipProps) {
 /** Horizontal bar chart of the fastest game-first-trophy -> platinum completions. */
 export function FastestPlatinumsChart({ data }: { data: FastestPlatinumResult[] }) {
   if (data.length === 0) {
-    return <p className="text-sm text-muted">No platinums earned yet.</p>
+    return <p className="text-sm text-muted">目前尚未取得白金獎盃。</p>
   }
 
   const chartData = data.map((entry) => ({
@@ -47,7 +47,7 @@ export function FastestPlatinumsChart({ data }: { data: FastestPlatinumResult[] 
             tickLine={false}
             allowDecimals={false}
             label={{
-              value: 'Hours',
+              value: '小時',
               position: 'insideBottom',
               offset: -2,
               fill: 'var(--muted)',

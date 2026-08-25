@@ -20,17 +20,16 @@ export function LandingPage() {
         🏆
       </span>
       <div>
-        <h1 className="text-2xl font-semibold text-text">Trophy Hunter Dashboard</h1>
+        <h1 className="text-2xl font-semibold text-text">獎盃獵人儀表板</h1>
         <p className="mt-2 max-w-md text-sm text-muted">
-          Enter a PlayStation Network ID above to explore trophy history, rarity, and
-          milestones.
+          輸入 PlayStation Network ID，查看獎盃歷程、稀有度與里程碑。
         </p>
       </div>
       <form onSubmit={handleSubmit} className="flex w-full max-w-sm gap-2">
         <Input
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="PSN ID..."
+          placeholder="輸入 PSN ID…"
           aria-label="PSN ID"
           variant="secondary"
           fullWidth
@@ -41,7 +40,7 @@ export function LandingPage() {
           variant="primary"
           className="shrink-0"
         >
-          Analyze
+          查詢
         </Button>
       </form>
     </div>

@@ -6,7 +6,7 @@ import { PlatformLogos } from '../components/PlatformLogos'
 import { Spinner } from '../components/Spinner'
 import type { PsnprofilesTrophy, Trophy, TrophyGrade } from '../lib/api'
 import { useGameDetail, usePsnprofilesTrophies } from '../lib/queries'
-import { GRADE_COLOR_VAR, parseRarityPercent, parseTrophyTimestamp } from '../lib/trophy'
+import { GRADE_COLOR_VAR, GRADE_LABEL, parseRarityPercent, parseTrophyTimestamp } from '../lib/trophy'
 
 type SortMode = 'order' | 'officialRarity' | 'psnprofilesRarity' | 'earned' | 'grade'
 type EarnedFilter = 'all' | 'earned' | 'locked'
@@ -30,17 +30,17 @@ const GRADE_SYMBOL: Record<TrophyGrade, string> = {
 }
 
 const SORT_OPTIONS: Array<{ id: SortMode; label: string }> = [
-  { id: 'order', label: 'Trophy order' },
-  { id: 'officialRarity', label: 'Official rarity' },
-  { id: 'psnprofilesRarity', label: 'PSNProfiles rarity' },
-  { id: 'earned', label: 'Earned time' },
-  { id: 'grade', label: 'Grade' },
+  { id: 'order', label: '預設獎盃順序' },
+  { id: 'officialRarity', label: 'PSN 官方稀有度' },
+  { id: 'psnprofilesRarity', label: 'PSNProfiles 稀有度' },
+  { id: 'earned', label: '取得時間' },
+  { id: 'grade', label: '獎盃類型' },
 ]
 
 const EARNED_FILTER_OPTIONS: Array<{ id: EarnedFilter; label: string }> = [
-  { id: 'all', label: 'All trophies' },
-  { id: 'earned', label: 'Earned' },
-  { id: 'locked', label: 'Not earned' },
+  { id: 'all', label: '所有獎盃' },
+  { id: 'earned', label: '已取得' },
+  { id: 'locked', label: '尚未取得' },
 ]
 
 function normaliseTrophyTitle(title: string): string {
@@ -99,22 +99,31 @@ function earnedTimestamp(trophy: Trophy): number {
 }
 
 function rarityLabel(trophy: Trophy): string {
-  if (trophy.rarity_label) return trophy.rarity_label
+  const translated = {
+    'Ultra Rare': '極度稀有',
+    'Very Rare': '非常稀有',
+    Rare: '稀有',
+    Uncommon: '不常見',
+    Common: '常見',
+  } as const
+  if (trophy.rarity_label) {
+    return translated[trophy.rarity_label as keyof typeof translated] ?? trophy.rarity_label
+  }
   const percent = parseRarityPercent(
     trophy.psn_rarity_percent ?? trophy.psnprofiles_rarity_percent ?? trophy.rarity_percent,
   )
-  if (!Number.isFinite(percent)) return 'Unknown rarity'
-  if (percent <= 5) return 'Ultra Rare'
-  if (percent <= 10) return 'Very Rare'
-  if (percent <= 20) return 'Rare'
-  if (percent <= 50) return 'Uncommon'
-  return 'Common'
+  if (!Number.isFinite(percent)) return '稀有度未知'
+  if (percent <= 5) return '極度稀有'
+  if (percent <= 10) return '非常稀有'
+  if (percent <= 20) return '稀有'
+  if (percent <= 50) return '不常見'
+  return '常見'
 }
 
 function formatEarnedTime(trophy: Trophy): string {
-  if (trophy.earned === false) return 'Not earned'
+  if (trophy.earned === false) return '尚未取得'
   const date = parseTrophyTimestamp(trophy.timestamp)
-  if (!date) return trophy.timestamp || 'Earned'
+  if (!date) return trophy.timestamp || '已取得'
   return date.toLocaleString('zh-TW', {
     year: 'numeric',
     month: 'short',
@@ -169,7 +178,7 @@ export function GameDetailPage() {
   }, [earnedFilter, enrichedTrophies, sortMode])
 
   if (!game) {
-    return <ErrorState title="No game selected" message="Return to Games and choose a title." />
+    return <ErrorState title="尚未選擇遊戲" message="請返回遊戲頁面並選擇一款遊戲。" />
   }
 
   if (detailQuery.isLoading) {
@@ -183,8 +192,8 @@ export function GameDetailPage() {
   if (detailQuery.isError || !detail) {
     return (
       <ErrorState
-        title="Game trophies unavailable"
-        message={detailQuery.error?.message ?? 'This trophy list could not be loaded.'}
+        title="無法取得遊戲獎盃"
+        message="目前無法載入這份獎盃列表。"
       />
     )
   }
@@ -201,13 +210,13 @@ export function GameDetailPage() {
           to={`/u/${encodeURIComponent(username ?? '')}/games`}
           className="self-start text-sm text-muted transition hover:text-accent"
         >
-          ← Back to Games
+          ← 返回遊戲
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-text">{detail.display_name}</h1>
             <p className="mt-1 text-sm text-muted">
-              {earnedCount} of {detail.trophies.length} trophies earned
+              已取得 {earnedCount}／{detail.trophies.length} 座獎盃
             </p>
           </div>
           <PlatformLogos platforms={detail.platforms} />
@@ -215,16 +224,16 @@ export function GameDetailPage() {
 
         {!detail.complete && (
           <p className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-muted">
-            This data source currently exposes earned trophies only; locked trophies are unavailable.
+            目前的資料來源只提供已取得的獎盃，無法顯示尚未取得的獎盃。
           </p>
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
           <div className="text-xs text-muted">
-            {psnprofilesQuery.isFetching && 'Loading PSNProfiles tracked-player rarity…'}
+            {psnprofilesQuery.isFetching && '正在載入 PSNProfiles 追蹤玩家稀有度…'}
             {!psnprofilesQuery.isFetching && psnprofilesQuery.data && (
               <>
-                PSNProfiles matched {psnprofilesMatched} of {detail.trophies.length} trophies
+                PSNProfiles 已媒合 {psnprofilesMatched}／{detail.trophies.length} 座獎盃
                 {' · '}
                 <a
                   href={psnprofilesQuery.data.game_url}
@@ -232,19 +241,19 @@ export function GameDetailPage() {
                   rel="noreferrer"
                   className="text-accent hover:text-accent-bright"
                 >
-                  Open trophy list
+                  開啟獎盃列表
                 </a>
               </>
             )}
             {!psnprofilesQuery.isFetching && !psnprofilesQuery.data && (
               <span>
-                PSNProfiles rarity is temporarily unavailable; official PSN data is still shown.
+                PSNProfiles 稀有度暫時無法取得，目前仍顯示 PSN 官方資料。
               </span>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
             <div className="flex items-center gap-2">
-              <span id="trophy-sort-label">Sort priority</span>
+              <span id="trophy-sort-label">排序方式</span>
               <Select
                 aria-labelledby="trophy-sort-label"
                 selectedKey={sortMode}
@@ -269,7 +278,7 @@ export function GameDetailPage() {
               </Select>
             </div>
             <div className="flex items-center gap-2">
-              <span id="trophy-earned-filter-label">Status</span>
+              <span id="trophy-earned-filter-label">取得狀態</span>
               <Select
                 aria-labelledby="trophy-earned-filter-label"
                 selectedKey={earnedFilter}
@@ -297,10 +306,10 @@ export function GameDetailPage() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3" aria-label="Trophies">
+      <section className="flex flex-col gap-3" aria-label="獎盃">
         {trophies.length === 0 && (
           <p className="rounded-xl border border-border bg-surface p-5 text-sm text-muted">
-            No trophies match this status filter.
+            沒有符合目前狀態篩選的獎盃。
           </p>
         )}
         {trophies.map((trophy, index) => (
@@ -321,7 +330,7 @@ export function GameDetailPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-semibold text-text">{trophy.title}</h2>
                 <span
-                  aria-label={`${trophy.grade} trophy`}
+                  aria-label={`${GRADE_LABEL[trophy.grade]}獎盃`}
                   className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-bold tracking-wide"
                   style={{
                     color: GRADE_COLOR_VAR[trophy.grade],
@@ -332,7 +341,7 @@ export function GameDetailPage() {
                   <span aria-hidden="true" className="text-sm leading-none">
                     {GRADE_SYMBOL[trophy.grade]}
                   </span>
-                  {trophy.grade}
+                  {GRADE_LABEL[trophy.grade]}
                 </span>
                 {trophy.is_dlc && (
                   <span className="rounded-full border border-accent/60 px-2 py-0.5 text-[11px] font-medium text-accent">
@@ -354,17 +363,17 @@ export function GameDetailPage() {
 
             <dl className="grid grid-cols-2 gap-x-5 gap-y-2 text-xs sm:min-w-[250px]">
               <div>
-                <dt className="text-muted">Rarity</dt>
+                <dt className="text-muted">稀有度</dt>
                 <dd className="mt-0.5 font-medium text-text">{rarityLabel(trophy)}</dd>
               </div>
               <div>
-                <dt className="text-muted">PSN official</dt>
+                <dt className="text-muted">PSN 官方</dt>
                 <dd className="mt-0.5 font-medium text-text">
-                  {trophy.psn_rarity_percent ?? 'N/A'}
+                  {trophy.psn_rarity_percent ?? '無法取得'}
                 </dd>
               </div>
               <div className="col-span-2">
-                <dt className="text-muted">PSNProfiles tracked players</dt>
+                <dt className="text-muted">PSNProfiles 追蹤玩家</dt>
                 <dd className="mt-0.5 font-medium text-text">
                   {trophy.psnprofiles_trophy_url ? (
                     <a
@@ -373,10 +382,10 @@ export function GameDetailPage() {
                       rel="noreferrer"
                       className="text-accent hover:text-accent-bright"
                     >
-                      {trophy.psnprofiles_rarity_percent ?? 'N/A'}
+                      {trophy.psnprofiles_rarity_percent ?? '無法取得'}
                     </a>
                   ) : (
-                    trophy.psnprofiles_rarity_percent ?? 'N/A'
+                    trophy.psnprofiles_rarity_percent ?? '無法取得'
                   )}
                 </dd>
               </div>

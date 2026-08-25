@@ -17,8 +17,8 @@ export function TrophyLevelGauge({ level, progress }: TrophyLevelGaugeProps) {
       : CIRCUMFERENCE * (1 - normalizedProgress / 100)
   const label =
     normalizedProgress === null
-      ? `Trophy level ${level ?? 'unavailable'}; level progress unavailable`
-      : `Trophy level ${level ?? 'unavailable'}; ${normalizedProgress}% to the next level`
+      ? `獎盃等級 ${level ?? '無法取得'}；無法取得等級進度`
+      : `獎盃等級 ${level ?? '無法取得'}；距離下一級 ${normalizedProgress}%`
 
   return (
     <div className="flex shrink-0 flex-col items-center gap-2">
@@ -50,13 +50,13 @@ export function TrophyLevelGauge({ level, progress }: TrophyLevelGaugeProps) {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
           <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-            Level
+            等級
           </span>
           <span className="mt-0.5 max-w-20 truncate text-2xl font-black tabular-nums text-accent-bright">
             {level ?? '—'}
           </span>
           <span className="mt-0.5 text-[10px] text-muted">
-            {normalizedProgress === null ? 'Progress unavailable' : `${normalizedProgress}% next level`}
+            {normalizedProgress === null ? '進度無法取得' : `下一級 ${normalizedProgress}%`}
           </span>
         </div>
       </div>

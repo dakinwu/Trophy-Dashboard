@@ -14,14 +14,14 @@ function rankFromStats(summary: ProfileSummary): PsnprofilesStats | null {
   return {
     world_rank: Number.isFinite(world) ? world : null,
     country_rank: Number.isFinite(country) ? country : null,
-    country_label: countryEntry?.[0] ?? 'Country Rank',
+    country_label: countryEntry?.[0] ?? '全國排名',
     completion: summary.stats.Completion ?? null,
     profile_url: `https://psnprofiles.com/${encodeURIComponent(summary.username)}`,
   }
 }
 
 function formatRank(rank: number | null): string {
-  return rank == null ? 'Unavailable' : `#${rank.toLocaleString()}`
+  return rank == null ? '無法取得' : `#${rank.toLocaleString()}`
 }
 
 export function PsnprofilesRankings({ summary }: { summary: ProfileSummary }) {
@@ -34,9 +34,9 @@ export function PsnprofilesRankings({ summary }: { summary: ProfileSummary }) {
     <section className="rounded-2xl border border-border bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-text">PSNProfiles Rankings</h2>
+          <h2 className="text-lg font-semibold text-text">PSNProfiles 排名</h2>
           <p className="mt-1 text-xs text-muted">
-            Ranking among public profiles tracked by PSNProfiles, not an official Sony leaderboard.
+            僅代表 PSNProfiles 所追蹤的公開玩家，不是 Sony 官方排行榜。
           </p>
         </div>
 
@@ -48,13 +48,13 @@ export function PsnprofilesRankings({ summary }: { summary: ProfileSummary }) {
             variant="outline"
             className="text-xs"
           >
-            Load rankings
+            載入排名
           </Button>
         )}
       </div>
 
       {requested && query.isFetching && (
-        <p className="mt-4 text-sm text-muted">Opening PSNProfiles and loading rankings…</p>
+        <p className="mt-4 text-sm text-muted">正在開啟 PSNProfiles 並載入排名…</p>
       )}
 
       {rankings && (
@@ -66,7 +66,7 @@ export function PsnprofilesRankings({ summary }: { summary: ProfileSummary }) {
             className="rounded-xl border border-border bg-bg/40 p-4 transition hover:border-accent"
           >
             <div className="text-2xl font-bold text-accent">{formatRank(rankings.world_rank)}</div>
-            <div className="mt-1 text-xs uppercase tracking-wide text-muted">World Rank</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-muted">全球排名</div>
           </a>
           <a
             href={rankings.profile_url}
@@ -76,7 +76,7 @@ export function PsnprofilesRankings({ summary }: { summary: ProfileSummary }) {
           >
             <div className="text-2xl font-bold text-accent">{formatRank(rankings.country_rank)}</div>
             <div className="mt-1 text-xs uppercase tracking-wide text-muted">
-              {rankings.country_label ?? 'Country Rank'}
+              全國排名
             </div>
           </a>
         </div>
@@ -85,7 +85,7 @@ export function PsnprofilesRankings({ summary }: { summary: ProfileSummary }) {
       {requested && !query.isFetching && query.isSuccess && !rankings && (
         <div className="mt-4 flex items-center gap-3">
           <p className="text-sm text-muted">
-            Rankings unavailable. The profile must be public and have a country on PSNProfiles.
+            無法取得排名。玩家資料必須公開，且 PSNProfiles 上需要有國家／地區資訊。
           </p>
           <Button
             type="button"
@@ -94,7 +94,7 @@ export function PsnprofilesRankings({ summary }: { summary: ProfileSummary }) {
             variant="ghost"
             className="text-xs text-accent"
           >
-            Retry
+            重試
           </Button>
         </div>
       )}

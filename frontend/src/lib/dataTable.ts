@@ -66,7 +66,7 @@ export function filterDataRows(rows: DataRow[], filters: DataFilters): DataRow[]
 
 /** Serializes rows to CSV (Game, Trophy, Date, Grade, Rarity). */
 export function dataRowsToCsv(rows: DataRow[]): string {
-  const header = ['Game', 'Trophy', 'Date', 'Grade', 'Rarity']
+  const header = ['遊戲', '獎盃', '日期', '類型', '稀有度']
   const body = rows.map((row) => [
     row.game,
     row.title,

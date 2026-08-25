@@ -32,6 +32,13 @@ class FileCache:
             json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
         )
 
+    def delete(self, key: str) -> None:
+        """Remove one cache entry when validation proves it is stale or wrong."""
+        try:
+            self._path(key).unlink()
+        except FileNotFoundError:
+            pass
+
     def modified_at(self, key: str) -> float | None:
         """Return the cache entry's filesystem timestamp when it exists."""
         path = self._path(key)

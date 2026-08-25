@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from urllib.parse import quote_plus, urljoin, urlparse
 
@@ -13,8 +14,13 @@ from app.core.cache import FileCache
 from app.services.http import create_session
 from app.services.psnprofiles_guide_service import (
     PSNPROFILES_BASE_URL,
+    _candidate_is_safe_match,
     _candidate_score,
+    _legacy_psnprofiles_search_query,
+    psnprofiles_search_query,
 )
+
+logger = logging.getLogger(__name__)
 
 PSNPROFILES_GAME_SEARCH_URL = f"{PSNPROFILES_BASE_URL}/search/games"
 _TROPHY_LIST_TTL = 30 * 24 * 3600
@@ -23,6 +29,15 @@ _TROPHY_PATH = re.compile(r"^/trophy/\d+(?:-[^/?#]+)?/\d+(?:-[^/?#]+)?/?$")
 _PERCENT = re.compile(r"\b\d+(?:\.\d+)?%")
 _RARITY_LABEL = re.compile(
     r"\b(Ultra Rare|Very Rare|Rare|Uncommon|Common)\b",
+    flags=re.IGNORECASE,
+)
+_GAME_OWNERS = re.compile(r"\b([\d,]+)\s+Game Owners?\b", flags=re.IGNORECASE)
+_AVERAGE_COMPLETION = re.compile(
+    r"\b(\d+(?:\.\d+)?)%\s+Average Completion\b",
+    flags=re.IGNORECASE,
+)
+_PLATINUM_ACHIEVERS = re.compile(
+    r"\b([\d,]+)\s*\((\d+(?:\.\d+)?)%\)\s+Platinum Achievers?\b",
     flags=re.IGNORECASE,
 )
 
@@ -76,6 +91,12 @@ def parse_game_search(
         )
 
     if not candidates:
+        page_title = soup.title.get_text(" ", strip=True) if soup.title else "unknown"
+        logger.warning(
+            "PSNProfiles search parser found no trophy-list links query=%r page_title=%r",
+            game,
+            page_title,
+        )
         return None
 
     wanted_platform = (platform or "").upper().replace(" ", "")
@@ -88,7 +109,23 @@ def parse_game_search(
         return value
 
     game_url, (title, platforms) = max(candidates.items(), key=score)
-    if _candidate_score(game, title) < 0.45:
+    if not _candidate_is_safe_match(game, title):
+        logger.warning(
+            "PSNProfiles search rejected unsafe title query=%r candidate=%r score=%.3f platforms=%s",
+            game,
+            title,
+            _candidate_score(game, title),
+            ",".join(sorted(platforms)) or "UNKNOWN",
+        )
+        return None
+    if wanted_platform and platforms and wanted_platform not in platforms:
+        logger.warning(
+            "PSNProfiles search rejected platform query=%r wanted=%s candidate=%r platforms=%s",
+            game,
+            wanted_platform,
+            title,
+            ",".join(sorted(platforms)),
+        )
         return None
     return {
         "title": title,
@@ -198,10 +235,38 @@ def parse_trophy_page(
     return trophies
 
 
+def parse_game_stats(html: str) -> dict[str, int | float | None]:
+    """Extract the game-level tracked-player signals shown by PSNProfiles."""
+    text = BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+    owners_match = _GAME_OWNERS.search(text)
+    completion_match = _AVERAGE_COMPLETION.search(text)
+    platinum_match = _PLATINUM_ACHIEVERS.search(text)
+    return {
+        "owners": (
+            int(owners_match.group(1).replace(",", ""))
+            if owners_match
+            else None
+        ),
+        "average_completion": (
+            float(completion_match.group(1)) if completion_match else None
+        ),
+        "platinum_achievers": (
+            int(platinum_match.group(1).replace(",", ""))
+            if platinum_match
+            else None
+        ),
+        "platinum_rate": (
+            float(platinum_match.group(2)) if platinum_match else None
+        ),
+    }
+
+
 def get_psnprofiles_trophies(
     game: str,
     platform: str | None = None,
     *,
+    search_aliases: list[str] | None = None,
+    cache_only: bool = False,
     cache: FileCache | None = None,
     session=None,
 ) -> dict | None:
@@ -211,30 +276,139 @@ def get_psnprofiles_trophies(
         return None
 
     cache = cache or FileCache(settings.cache_dir)
-    cache_seed = f"{game.casefold()}:{(platform or '').upper()}"
-    digest = hashlib.sha256(cache_seed.encode("utf-8")).hexdigest()
-    # v6 waits for the browser to load the declared trophy count before parsing
-    # every trophy table (including DLC), and retains both rarity
-    # values so the client can distinguish tracked-player data from official
-    # PSN data.
-    key = f"psnprofiles_trophies_v6/{digest}"
+    search_titles: list[str] = []
+    for title in [game, *(search_aliases or [])]:
+        query = psnprofiles_search_query(title)
+        if query and query.casefold() not in {
+            existing.casefold() for existing in search_titles
+        }:
+            search_titles.append(query)
+    if not search_titles:
+        return None
+
+    def cache_key(title: str) -> str:
+        cache_seed = f"{title.casefold()}:{(platform or '').upper()}"
+        digest = hashlib.sha256(cache_seed.encode("utf-8")).hexdigest()
+        return f"psnprofiles_trophies_v7/{digest}"
+
+    # v7 stores game-level owners / completion / platinum signals for the
+    # Trophy Advisor while retaining the complete DLC-aware trophy list.
+    # Failed searches are not cached, so cleaned titles and optional aliases can
+    # retry them without invalidating previously successful enrichment data.
+    key = cache_key(game)
+
+    def valid_cached_result(cached: dict) -> bool:
+        cached_title = str(cached.get("title") or "")
+        cached_platforms = _platform_tokens(str(cached.get("platform") or ""))
+        wanted_platform = (platform or "").upper().replace(" ", "")
+        title_matches = any(
+            _candidate_is_safe_match(search_title, cached_title)
+            for search_title in search_titles
+        )
+        platform_matches = (
+            not wanted_platform
+            or not cached_platforms
+            or wanted_platform in cached_platforms
+        )
+        return bool(cached and title_matches and platform_matches)
+
     cached = cache.load(key, _TROPHY_LIST_TTL)
     if cached is not None:
-        return cached or None
+        if valid_cached_result(cached):
+            logger.info(
+                "PSNProfiles cache hit title=%r platform=%s cached_title=%r",
+                game,
+                platform or "UNKNOWN",
+                cached.get("title"),
+            )
+            return cached
+        cache.delete(key)
+
+    # Search punctuation was tightened after Advisor analysis already existed.
+    # Migrate validated legacy keys (for example ``Beyond: Two Souls``) to the
+    # canonical punctuation-free key without opening Chrome again.
+    legacy_titles: list[str] = []
+    for title in [game, *(search_aliases or [])]:
+        legacy_title = _legacy_psnprofiles_search_query(title)
+        if (
+            legacy_title
+            and legacy_title.casefold() != game.casefold()
+            and legacy_title.casefold()
+            not in {existing.casefold() for existing in legacy_titles}
+        ):
+            legacy_titles.append(legacy_title)
+    for legacy_title in legacy_titles:
+        legacy_key = cache_key(legacy_title)
+        legacy_cached = cache.load(legacy_key, _TROPHY_LIST_TTL)
+        if legacy_cached is None:
+            continue
+        if valid_cached_result(legacy_cached):
+            cache.save(key, legacy_cached)
+            cache.delete(legacy_key)
+            logger.info(
+                "PSNProfiles legacy cache migrated title=%r platform=%s cached_title=%r",
+                game,
+                platform or "UNKNOWN",
+                legacy_cached.get("title"),
+            )
+            return legacy_cached
+        cache.delete(legacy_key)
+    if cache_only:
+        logger.info(
+            "PSNProfiles cache miss title=%r platform=%s aliases=%r",
+            game,
+            platform or "UNKNOWN",
+            search_titles,
+        )
+        return None
 
     owns_session = session is None
     session = session or create_session()
     try:
-        search_url = f"{PSNPROFILES_GAME_SEARCH_URL}?q={quote_plus(game)}"
-        search_response = session.get(
-            search_url,
-            timeout=settings.psnprofiles_browser_timeout,
-        )
-        search_response.raise_for_status()
-        match = parse_game_search(search_response.text, game, platform)
+        match = None
+        for search_title in search_titles:
+            search_url = (
+                f"{PSNPROFILES_GAME_SEARCH_URL}?q={quote_plus(search_title)}"
+            )
+            logger.info(
+                "PSNProfiles search start title=%r platform=%s",
+                search_title,
+                platform or "UNKNOWN",
+            )
+            search_response = session.get(
+                search_url,
+                timeout=settings.psnprofiles_browser_timeout,
+            )
+            search_response.raise_for_status()
+            match = parse_game_search(
+                search_response.text,
+                search_title,
+                platform,
+            )
+            if match is not None:
+                logger.info(
+                    "PSNProfiles search matched title=%r platform=%s result=%r url=%s",
+                    search_title,
+                    platform or "UNKNOWN",
+                    match["title"],
+                    match["game_url"],
+                )
+                break
+            logger.info(
+                "PSNProfiles search no safe match title=%r platform=%s",
+                search_title,
+                platform or "UNKNOWN",
+            )
         if match is None:
+            logger.warning(
+                "PSNProfiles lookup exhausted aliases game=%r platform=%s aliases=%r",
+                game,
+                platform or "UNKNOWN",
+                search_titles,
+            )
             return None
 
+        logger.info("PSNProfiles trophy page start url=%s", match["game_url"])
         trophy_response = session.get(
             f"{match['game_url']}?order=rarity",
             timeout=settings.psnprofiles_browser_timeout,
@@ -242,6 +416,10 @@ def get_psnprofiles_trophies(
         trophy_response.raise_for_status()
         trophies = parse_trophy_page(trophy_response.text)
         if not trophies:
+            logger.warning(
+                "PSNProfiles trophy page contained no trophy rows url=%s",
+                match["game_url"],
+            )
             return None
 
         result = {
@@ -249,8 +427,17 @@ def get_psnprofiles_trophies(
             "platform": match["platform"],
             "game_url": match["game_url"],
             "trophies": trophies,
+            **parse_game_stats(trophy_response.text),
         }
         cache.save(key, result)
+        logger.info(
+            "PSNProfiles lookup complete title=%r platform=%s trophies=%d owners=%s platinum_achievers=%s",
+            result["title"],
+            result["platform"] or platform or "UNKNOWN",
+            len(trophies),
+            result.get("owners"),
+            result.get("platinum_achievers"),
+        )
         return result
     finally:
         if owns_session:

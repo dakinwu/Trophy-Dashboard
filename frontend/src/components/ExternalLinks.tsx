@@ -17,8 +17,8 @@ export function ExternalLinks({
           href={link.url}
           target="_blank"
           rel="noopener noreferrer"
-          title={`Search "${game}" on ${link.label}`}
-          aria-label={`Search ${game} on ${link.label}`}
+          title={`在 ${link.label} 搜尋「${game}」`}
+          aria-label={`在 ${link.label} 搜尋 ${game}`}
           className="rounded-full border border-border bg-bg/40 px-2 py-0.5 text-[11px] font-medium text-muted transition hover:border-accent hover:text-accent"
         >
           {link.label}

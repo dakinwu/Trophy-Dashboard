@@ -22,12 +22,12 @@ function MilestonesContent({ trophyLog }: { trophyLog: Trophy[] }) {
   const milestones = useMemo(() => computeMilestones(trophyLog), [trophyLog])
 
   if (milestones.length === 0) {
-    return <ErrorState title="No milestones yet" message="This profile has no logged trophies." />
+    return <ErrorState title="尚無里程碑" message="這位玩家目前沒有獎盃紀錄。" />
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-text">Milestones</h1>
+      <h1 className="text-lg font-semibold text-text">里程碑</h1>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {milestones.map((milestone) => (
           <MilestoneCard key={milestone.key} milestone={milestone} />
