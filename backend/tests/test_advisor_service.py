@@ -7,6 +7,7 @@ import pytest
 from app.core.cache import FileCache
 from app.models import AdvisorCandidate
 from app.services import advisor_service
+from app.services.gemini_title_service import TitleResolution, candidate_key
 
 
 def _raw_game(title_id: str, name: str, platform: str, membership: str = "NONE"):
@@ -198,6 +199,7 @@ def test_advisor_never_sends_localized_alias_to_psnprofiles_search(monkeypatch):
             return None
 
     monkeypatch.setattr(advisor_service, "create_session", Session)
+    monkeypatch.setattr(advisor_service.settings, "gemini_api_key", None)
     calls = []
 
     def fake_lookup(game, platform, **kwargs):
@@ -217,6 +219,67 @@ def test_advisor_never_sends_localized_alias_to_psnprofiles_search(monkeypatch):
     )
 
     assert calls == [("LittleBigPlanet 3", "PS4", ["LittleBigPlanet 3"])]
+
+
+def test_advisor_retries_unmatched_title_once_with_grounded_alternative(monkeypatch):
+    class Session:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+    monkeypatch.setattr(advisor_service, "create_session", Session)
+    monkeypatch.setattr(advisor_service.settings, "gemini_api_key", "secret")
+    candidate = AdvisorCandidate(game="Wrong Store Name", platform="PS5")
+    resolution_calls = []
+
+    def fake_resolve(candidates, **kwargs):
+        resolution_calls.append(kwargs)
+        if kwargs.get("retry_attempts"):
+            return {
+                candidate_key(item): TitleResolution(
+                    "Corrected Game",
+                    source="gemini",
+                )
+                for item in candidates
+            }
+        return {
+            candidate_key(item): TitleResolution(
+                "Wrong Store Name",
+                source="source_title",
+            )
+            for item in candidates
+        }
+
+    monkeypatch.setattr(advisor_service, "resolve_advisor_titles", fake_resolve)
+    calls = []
+
+    def fake_lookup(game, platform, **kwargs):
+        calls.append((game, platform, kwargs["session"]))
+        if game == "Wrong Store Name":
+            return None
+        return {
+            "title": game,
+            "platform": platform,
+            "game_url": "https://psnprofiles.com/trophies/1-corrected-game",
+            "owners": 100,
+            "average_completion": 50.0,
+            "platinum_achievers": 25,
+            "platinum_rate": 25.0,
+        }
+
+    monkeypatch.setattr(advisor_service, "get_psnprofiles_trophies", fake_lookup)
+
+    result = advisor_service.get_advisor_signals_batch([candidate])[0]
+
+    assert result.signals is not None
+    assert result.signals.title == "Corrected Game"
+    assert [call[0] for call in calls] == ["Wrong Store Name", "Corrected Game"]
+    assert len(resolution_calls) == 2
+    assert resolution_calls[1]["retry_attempts"] == {
+        candidate_key(candidate): "Wrong Store Name"
+    }
 
 
 def test_known_multi_trophy_list_package_analyzes_each_child(monkeypatch):

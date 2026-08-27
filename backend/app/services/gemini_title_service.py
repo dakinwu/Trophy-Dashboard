@@ -120,7 +120,12 @@ def _response_text(payload: dict) -> str:
     return text
 
 
-def _request_resolutions(candidates: list[AdvisorCandidate]) -> dict[str, dict]:
+def _request_resolutions(
+    candidates: list[AdvisorCandidate],
+    *,
+    previous_search_titles: dict[str, str] | None = None,
+) -> dict[str, dict]:
+    previous_search_titles = previous_search_titles or {}
     records = [
         {
             "id": str(index),
@@ -128,9 +133,22 @@ def _request_resolutions(candidates: list[AdvisorCandidate]) -> dict[str, dict]:
             "platform": candidate.platform,
             "title_id": candidate.title_id,
             "product_id": candidate.product_id,
+            **(
+                {"previous_search_title": previous_search_titles[candidate_key(candidate)]}
+                if previous_search_titles.get(candidate_key(candidate))
+                else {}
+            ),
         }
         for index, candidate in enumerate(candidates)
     ]
+    retry_instruction = ""
+    if previous_search_titles:
+        retry_instruction = (
+            "Some inputs already failed a safe PSNProfiles search. For those inputs, "
+            "do not repeat previous_search_title: find a different canonical title "
+            "that PSNProfiles actually uses, or return an empty english_title when "
+            "no safe alternative exists.\n"
+        )
     prompt = (
         "Use Google Search to resolve each PlayStation game to its canonical "
         "official English title and verify that the result is suitable as a "
@@ -144,7 +162,9 @@ def _request_resolutions(candidates: list[AdvisorCandidate]) -> dict[str, dict]:
         "word trial are not trials. Preserve every input id exactly. Return JSON only "
         "with this exact shape: {\"games\":[{\"id\":\"0\","
         "\"english_title\":\"Canonical English Title\",\"is_trial\":false}]}. "
-        "Include one object for every input id and no Markdown fences.\n\n"
+        "Use an empty english_title when no safe title can be verified. "
+        "Include one object for every input id and no Markdown fences.\n"
+        f"{retry_instruction}\n"
         f"Games:\n{json.dumps(records, ensure_ascii=False)}"
     )
     url = (
@@ -210,15 +230,27 @@ def resolve_advisor_titles(
     *,
     cache: FileCache | None = None,
     allow_api: bool = True,
+    retry_attempts: dict[str, str] | None = None,
 ) -> dict[str, TitleResolution]:
-    """Resolve a batch once, returning safe local fallbacks on API failure."""
+    """Resolve titles, optionally forcing a second grounded attempt for misses."""
     cache = cache or FileCache(settings.cache_dir)
+    retry_attempts = retry_attempts or {}
     resolved: dict[str, TitleResolution] = {}
     missing: list[AdvisorCandidate] = []
 
     for candidate in candidates:
+        candidate_id = candidate_key(candidate)
         source_fallback = psnprofiles_search_query(candidate.game) or candidate.game
         fallback = _source_title_override(source_fallback)
+        if candidate_id in retry_attempts:
+            if allow_api and settings.gemini_api_key:
+                missing.append(candidate)
+                continue
+            resolved[candidate_id] = TitleResolution(
+                fallback,
+                error="Gemini title retry is unavailable.",
+            )
+            continue
         # Curated corrections are stronger than previous model output and must
         # immediately supersede a bad cached resolution.
         if fallback != source_fallback:
@@ -278,7 +310,10 @@ def resolve_advisor_titles(
     for start in range(0, len(missing), _TITLE_GROUNDING_BATCH_SIZE):
         batch = missing[start : start + _TITLE_GROUNDING_BATCH_SIZE]
         try:
-            items = _request_resolutions(batch)
+            items = _request_resolutions(
+                batch,
+                previous_search_titles=retry_attempts,
+            )
         except Exception as exc:
             logger.warning(
                 "Gemini grounded title lookup failed offset=%d count=%d: %s",
@@ -301,7 +336,10 @@ def resolve_advisor_titles(
             fallback = _source_title_override(fallback)
             title = psnprofiles_search_query(str(item.get("english_title") or ""))
             is_trial = bool(item.get("is_trial"))
-            if title and is_english_search_title(title):
+            previous_title = retry_attempts.get(candidate_key(candidate))
+            previous_query = psnprofiles_search_query(previous_title or "")
+            is_new_title = not previous_query or title.casefold() != previous_query.casefold()
+            if title and is_english_search_title(title) and is_new_title:
                 resolution = TitleResolution(title, is_trial, "gemini")
                 cache.save(
                     _cache_key(candidate),

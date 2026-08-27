@@ -23,6 +23,7 @@ from app.models import (
 from app.services.http import PSNProfilesFetchError, create_session
 from app.services.autopop_catalog import get_autopop_info
 from app.services.gemini_title_service import (
+    TitleResolution,
     candidate_key,
     is_english_search_title,
     resolve_advisor_titles,
@@ -609,7 +610,7 @@ def get_advisor_signals_batch(
     cache: FileCache | None = None,
     cache_only: bool = False,
 ) -> list[AdvisorSignalResult]:
-    """Enrich a bounded candidate batch with one reusable PSNProfiles browser."""
+    """Enrich a bounded batch, retrying unmatched titles once with Gemini."""
     cache = cache or FileCache(settings.cache_dir)
     logger.info(
         "Advisor analysis batch start count=%d cache_only=%s",
@@ -617,6 +618,7 @@ def get_advisor_signals_batch(
         cache_only,
     )
     results: list[AdvisorSignalResult] = []
+    retry_candidates: list[tuple[int, AdvisorCandidate, TitleResolution]] = []
     terminal_error: str | None = None
     resolutions = resolve_advisor_titles(
         candidates,
@@ -806,6 +808,8 @@ def get_advisor_signals_batch(
                         signals=signals,
                     )
                 )
+                if not cache_only and data is None and settings.gemini_api_key:
+                    retry_candidates.append((len(results) - 1, candidate, resolution))
             except PSNProfilesFetchError as exc:
                 logger.warning(
                     "Advisor analysis browser failure original=%r resolved=%r platform=%s error=%s",
@@ -838,6 +842,79 @@ def get_advisor_signals_batch(
                         platform=candidate.platform,
                         error="目前無法取得這款遊戲的 PSNProfiles 資料。",
                     )
+                )
+        if retry_candidates and terminal_error is None and settings.gemini_api_key:
+            retry_input = [candidate for _, candidate, _ in retry_candidates]
+            retry_attempts = {
+                candidate_key(candidate): resolution.search_title
+                for _, candidate, resolution in retry_candidates
+            }
+            retry_resolutions = resolve_advisor_titles(
+                retry_input,
+                cache=cache,
+                allow_api=True,
+                retry_attempts=retry_attempts,
+            )
+            logger.info(
+                "Advisor fallback title lookup start unresolved=%d",
+                len(retry_candidates),
+            )
+            for result_index, candidate, first_resolution in retry_candidates:
+                retry_resolution = retry_resolutions[candidate_key(candidate)]
+                if (
+                    retry_resolution.error
+                    or retry_resolution.is_trial
+                    or not is_english_search_title(retry_resolution.search_title)
+                    or retry_resolution.search_title.casefold()
+                    == first_resolution.search_title.casefold()
+                ):
+                    continue
+                retry_aliases = [
+                    alias
+                    for alias in [
+                        candidate.game,
+                        first_resolution.search_title,
+                        *candidate.aliases,
+                    ]
+                    if is_english_search_title(alias)
+                ]
+                try:
+                    retry_data = get_psnprofiles_trophies(
+                        retry_resolution.search_title,
+                        candidate.platform,
+                        search_aliases=retry_aliases,
+                        cache_only=False,
+                        cache=cache,
+                        session=session,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Advisor fallback PSNProfiles lookup failed original=%r attempted=%r fallback=%r error=%s",
+                        candidate.game,
+                        first_resolution.search_title,
+                        retry_resolution.search_title,
+                        exc,
+                    )
+                    continue
+                retry_signals = to_signals(retry_data)
+                if retry_signals is None:
+                    logger.info(
+                        "Advisor fallback title still had no safe PSNProfiles match original=%r attempted=%r fallback=%r",
+                        candidate.game,
+                        first_resolution.search_title,
+                        retry_resolution.search_title,
+                    )
+                    continue
+                results[result_index] = AdvisorSignalResult(
+                    game=candidate.game,
+                    platform=candidate.platform,
+                    signals=retry_signals,
+                )
+                logger.info(
+                    "Advisor fallback recovered PSNProfiles match original=%r attempted=%r fallback=%r",
+                    candidate.game,
+                    first_resolution.search_title,
+                    retry_resolution.search_title,
                 )
     logger.info(
         "Advisor analysis batch complete count=%d matched=%d failed=%d cache_only=%s",

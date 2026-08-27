@@ -247,6 +247,77 @@ def test_grounded_titles_are_split_into_independently_cached_batches(
     assert all(resolution.source == "gemini" for resolution in first.values())
 
 
+def test_retry_grounding_includes_previous_title_and_requires_a_new_title(
+    monkeypatch,
+    tmp_path,
+):
+    requests_seen = []
+
+    class RetryResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": json.dumps(
+                                        {
+                                            "games": [
+                                                {
+                                                    "id": "0",
+                                                    "english_title": "Corrected Game",
+                                                    "is_trial": False,
+                                                }
+                                            ]
+                                        }
+                                    )
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    def fake_post(_url, **kwargs):
+        prompt = kwargs["json"]["contents"][0]["parts"][0]["text"]
+        requests_seen.append(json.loads(prompt.split("Games:\n", 1)[1]))
+        return RetryResponse()
+
+    monkeypatch.setattr(gemini_title_service.settings, "gemini_api_key", "secret")
+    monkeypatch.setattr(gemini_title_service.requests, "post", fake_post)
+    candidate = AdvisorCandidate(game="錯誤名稱", platform="PS5")
+    cache = FileCache(tmp_path)
+
+    resolution = gemini_title_service.resolve_advisor_titles(
+        [candidate],
+        cache=cache,
+        retry_attempts={
+            gemini_title_service.candidate_key(candidate): "Wrong Store Name"
+        },
+    )[gemini_title_service.candidate_key(candidate)]
+
+    assert resolution.search_title == "Corrected Game"
+    assert resolution.source == "gemini"
+    assert requests_seen == [
+        [
+            {
+                "id": "0",
+                "source_names": ["錯誤名稱"],
+                "platform": "PS5",
+                "title_id": None,
+                "product_id": None,
+                "previous_search_title": "Wrong Store Name",
+            }
+        ]
+    ]
+
+
 def test_cache_only_can_use_legacy_title_as_existing_signal_index(
     monkeypatch,
     tmp_path,
