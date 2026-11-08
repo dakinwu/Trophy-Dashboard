@@ -6,6 +6,7 @@ from app.models import (
     ProfileSummary,
     Trophy,
     TrophyCounts,
+    PlatinumGallery,
 )
 from app.services import profile_service
 
@@ -203,3 +204,100 @@ def test_get_profile_adds_cached_psnprofiles_rarity_without_scraping(tmp_path):
     assert data is not None
     assert data.trophy_log[0].psn_rarity_percent == "2.0%"
     assert data.trophy_log[0].psnprofiles_rarity_percent == "12.34%"
+
+
+def test_get_profile_reuses_recent_official_icon_cache_for_psnprofiles_rows(
+    tmp_path,
+    monkeypatch,
+):
+    cache = FileCache(tmp_path)
+    profile = ProfileData(
+        profile_summary=ProfileSummary(
+            username="TestUser",
+            total_trophies=TrophyCounts(total=1),
+        ),
+        trophy_log=[
+            Trophy(
+                game="Test Game (PS5)",
+                platforms=["PS5"],
+                icon_url="https://img.psnprofiles.com/trophy/s/1/blocked.png",
+                title="First Trophy",
+                timestamp="1st Jan 2026 1:00:00 pm",
+                rarity_percent="2.0%",
+                rarity_source="psnprofiles",
+                psnprofiles_rarity_percent="2.0%",
+                grade="Bronze",
+                trophy_id=0,
+            )
+        ],
+    )
+    cache.save("profile_v3/testuser", profile.model_dump())
+    cache.save(
+        "psn_title_v2/official",
+        {
+            "trophies": [
+                {
+                    "game": "Test Game",
+                    "title": "First Trophy",
+                    "icon_url": (
+                        "https://image.api.playstation.com/trophy/np/TEST/ICON.PNG"
+                    ),
+                }
+            ]
+        },
+    )
+    data = profile_service.get_profile("TestUser", cache=cache)
+
+    assert data is not None
+    assert data.trophy_log[0].icon_url.startswith(
+        "https://image.api.playstation.com/"
+    )
+
+
+def test_partial_fallback_retains_gallery_for_same_user_without_changing_log(tmp_path):
+    cache = FileCache(tmp_path)
+
+    def platinum(title, stamp):
+        return Trophy(game="Game", title=title, grade="Platinum", timestamp=stamp,
+                      icon_url="https://image.api.playstation.com/trophy/np/T/icon.PNG",
+                      rarity_percent="1%")
+
+    older = platinum("Old platinum", "2026-01-01T00:00:00Z")
+    recent = platinum("New platinum", "2026-02-01T00:00:00Z")
+    complete = ProfileData(profile_summary=ProfileSummary(
+        username="TestUser", total_trophies=TrophyCounts(total=2, platinum=2)),
+        trophy_log=[recent, older])
+    profile_service._with_cached_official_icons(complete, cache)
+    partial = ProfileData(profile_summary=complete.profile_summary, trophy_log=[recent])
+    cache.save("profile_v3/testuser", partial.model_dump())
+
+    data = profile_service.get_profile("TestUser", cache=cache)
+
+    assert len(data.trophy_log) == 1
+    assert [t.title for t in data.platinum_trophies] == ["New platinum", "Old platinum"]
+    other = ProfileData(profile_summary=ProfileSummary(
+        username="OtherUser", total_trophies=TrophyCounts(total=2, platinum=2)),
+        trophy_log=[recent])
+    profile_service._with_cached_official_icons(other, cache)
+    assert len(other.platinum_trophies) == 1
+
+
+def test_expired_gallery_remains_available_when_sony_is_unreachable(tmp_path, monkeypatch):
+    import os
+    import time
+
+    cache = FileCache(tmp_path)
+    gallery = PlatinumGallery(username="TestUser", trophies=[], total_count=0,
+                              fetched_at="2026-01-01T00:00:00Z", complete=True)
+    cache.save("psn_platinum_gallery_v1/testuser", gallery.model_dump())
+    old_time = time.time() - 10 * 86400
+    os.utime(tmp_path / "psn_platinum_gallery_v1__testuser.json", (old_time, old_time))
+
+    def unavailable(*_args):
+        raise ConnectionError("offline")
+
+    monkeypatch.setattr(profile_service, "build_platinum_gallery_from_psn", unavailable)
+    result = profile_service.get_platinum_gallery("TestUser", cache=cache)
+    assert result.complete
+    assert result.cache_status == "cached"
+    assert result.fetched_at == gallery.fetched_at

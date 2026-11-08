@@ -53,10 +53,20 @@ class PlatinumGame(BaseModel):
     icon_url: str
 
 
+class PlatinumGallery(BaseModel):
+    username: str
+    trophies: list[Trophy] = Field(default_factory=list)
+    total_count: int
+    fetched_at: str
+    complete: bool
+    cache_status: Literal["live", "cached"] = "live"
+
+
 class ProfileData(BaseModel):
     profile_summary: ProfileSummary
     trophy_log: list[Trophy] = Field(default_factory=list)
     platinum_games: list[PlatinumGame] = Field(default_factory=list)
+    platinum_trophies: list[Trophy] = Field(default_factory=list)
     summary_only: bool = False
     profile_source: Literal["psn", "psnprofiles"] | None = None
     cache_status: Literal["live", "cached"] | None = None
@@ -125,6 +135,9 @@ class PsnprofilesAdvisorSignals(BaseModel):
     average_completion: float | None = None
     platinum_achievers: int | None = None
     platinum_rate: float | None = None
+    cache_status: Literal["fresh", "stale"] = "fresh"
+    fetched_at: str | None = None
+    refresh_error: str | None = None
 
 
 class AdvisorBundleChildResult(BaseModel):
@@ -149,10 +162,13 @@ class AdvisorSignalResult(BaseModel):
     bundle: AdvisorBundleResult | None = None
     error: str | None = None
     retryable: bool = True
+    error_stage: Literal["title", "search", "trophy_page", "browser"] | None = None
 
 
 class AdvisorBatchRequest(BaseModel):
     candidates: list[AdvisorCandidate] = Field(min_length=1, max_length=50)
+    allow_title_api: bool = True
+    retry_title_lookup: bool = False
 
 
 class AdvisorBatchResponse(BaseModel):

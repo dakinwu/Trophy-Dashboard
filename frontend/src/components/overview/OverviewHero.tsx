@@ -10,6 +10,7 @@ import {
 } from '../../lib/overviewHero'
 import { GRADE_COLOR_VAR, GRADE_LABEL, rarityForSource } from '../../lib/trophy'
 import { BorderBeam } from '../magicui/BorderBeam'
+import { ImageWithFallback } from '../ImageWithFallback'
 import { NumberTicker } from '../magicui/NumberTicker'
 import { TrophyLevelGauge } from './TrophyLevelGauge'
 import { useHeroSpotlight } from './useHeroSpotlight'
@@ -224,7 +225,7 @@ function RecentPanel({ viewModel }: { viewModel: OverviewHeroViewModel }) {
                 key={`${trophy.game}-${trophy.title}-${trophy.timestamp}`}
                 className="flex items-center gap-3 rounded-xl border border-border/70 bg-bg/35 p-2.5"
               >
-                <img
+                <ImageWithFallback
                   src={trophy.icon_url}
                   alt=""
                   loading="lazy"

@@ -124,7 +124,7 @@ PSN_NPSSO=
 # Where cached JSON is written (relative to backend/).
 CACHE_DIR=data_cache
 # Allowed frontend origins for CORS (JSON list).
-CORS_ORIGINS=["http://localhost:5173"]
+CORS_ORIGINS=["http://localhost:5174"]
 ```
 
 - [ ] **Step 5: Create `backend/app/config.py`**
@@ -138,7 +138,7 @@ class Settings(BaseSettings):
 
     psn_npsso: str | None = None
     cache_dir: str = "data_cache"
-    cors_origins: list[str] = ["http://localhost:5173"]
+    cors_origins: list[str] = ["http://localhost:5174"]
     scrape_user_agent: str = "TrophyHunter/2.0 (local; hello@example.com)"
 
 
@@ -1179,9 +1179,9 @@ Expected: ALL tests pass across all files.
 
 - [ ] **Step 6: Manual smoke test (optional but recommended)**
 
-Run (from `backend/`): `uvicorn app.main:app --reload --port 8000`
-Then in another shell: `curl http://localhost:8000/api/health` → `{"status":"ok"}`.
-With a real public PSN id: `curl http://localhost:8000/api/profile/<psn_id>` → JSON profile (first call scrapes; may take a while).
+Run (from `backend/`): `uvicorn app.main:app --reload --port 8001`
+Then in another shell: `curl http://localhost:8001/api/health` → `{"status":"ok"}`.
+With a real public PSN id: `curl http://localhost:8001/api/profile/<psn_id>` → JSON profile (first call scrapes; may take a while).
 
 - [ ] **Step 7: Commit**
 

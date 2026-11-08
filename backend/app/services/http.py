@@ -7,6 +7,7 @@ import threading
 import time
 from contextlib import suppress
 from dataclasses import dataclass
+from urllib.parse import parse_qs, urlsplit
 
 from bs4 import BeautifulSoup
 
@@ -40,6 +41,10 @@ _ERROR_MARKERS = (
 
 class PSNProfilesFetchError(RuntimeError):
     """Raised when the browser fetch layer cannot return a PSNProfiles page."""
+
+
+class PSNProfilesChallengeError(PSNProfilesFetchError):
+    """Manual site verification is needed; callers must not retry around it."""
 
 
 @dataclass
@@ -92,7 +97,7 @@ def _trophy_page_is_complete(
     return len(trophy_urls) >= expected
 
 
-def _page_is_ready(html: str) -> bool:
+def _page_is_ready(html: str, requested_url: str | None = None) -> bool:
     """True once Cloudflare has yielded requested content or a terminal error."""
     soup = BeautifulSoup(html, "html.parser")
     title = soup.title.get_text(" ", strip=True).lower() if soup.title else ""
@@ -100,6 +105,14 @@ def _page_is_ready(html: str) -> bool:
         return False
 
     body = soup.get_text(" ", strip=True).lower()
+    if requested_url and urlsplit(requested_url).path.startswith("/trophies/"):
+        game_id = urlsplit(requested_url).path.split("/")[2].split("-")[0]
+        has_trophies = any(
+            re.match(rf"/trophy/{re.escape(game_id)}(?:-|/)", anchor.get("href", ""))
+            for anchor in soup.select('table.zebra a[href*="/trophy/"]')
+        )
+        if not has_trophies:
+            return any(marker in body for marker in _ERROR_MARKERS)
     if soup.select_one("table.zebra"):
         return _trophy_page_is_complete(soup, title, body)
 
@@ -112,6 +125,16 @@ def _page_is_ready(html: str) -> bool:
         return True
 
     return any(marker in body for marker in _ERROR_MARKERS)
+
+
+def _navigation_matches(current: str, requested: str) -> bool:
+    actual, wanted = urlsplit(current), urlsplit(requested)
+    if (actual.hostname or "").removeprefix("www.") != (wanted.hostname or "").removeprefix("www."):
+        return False
+    if actual.path.rstrip("/") != wanted.path.rstrip("/"):
+        return False
+    actual_query = parse_qs(actual.query)
+    return all(actual_query.get(key) == value for key, value in parse_qs(wanted.query).items())
 
 
 class NodriverSession:
@@ -166,11 +189,33 @@ class NodriverSession:
         tab = await self._browser.get(url)
         deadline = time.monotonic() + timeout
         last_html = ""
+        last_signature = None
 
         while time.monotonic() < deadline:
+            state = await tab.evaluate(
+                "({url: window.location.href, readyState: document.readyState})",
+                return_by_value=True,
+            )
+            if not isinstance(state, dict) or not _navigation_matches(str(state.get("url", "")), url) or state.get("readyState") != "complete":
+                last_signature = None
+                await tab.sleep(0.5)
+                continue
             last_html = await tab.get_content()
-            if _page_is_ready(last_html):
-                return BrowserResponse(last_html)
+            soup = BeautifulSoup(last_html, "html.parser")
+            title_text = soup.title.get_text(" ", strip=True).casefold() if soup.title else ""
+            if any(marker in title_text for marker in ("just a moment", "attention required", "請稍候", "请稍候")):
+                raise PSNProfilesChallengeError("PSNProfiles 需要手動完成網站驗證，請在瀏覽器完成後重試。")
+            page_ready = _page_is_ready(last_html, url)
+            if page_ready:
+                # Compare meaningful page data rather than ads/animation markup.
+                signature = (title_text, tuple(table.get_text(" ", strip=True)
+                             for table in soup.select("table.zebra")),
+                             tuple(a.get("href") for a in soup.select('a[href*="/trophy/"]')))
+                if signature == last_signature:
+                    return BrowserResponse(last_html)
+                last_signature = signature
+            else:
+                last_signature = None
             # Trophy lists can lazy-render additional rows as the page scrolls.
             # Keep advancing by one viewport until the declared count and URL
             # positions are complete, then the next poll returns the full DOM.
@@ -183,6 +228,7 @@ class NodriverSession:
             if (
                 "trophies" in partial_title
                 and partial_soup.select_one("table.zebra")
+                and not page_ready
             ):
                 await tab.scroll_down(100)
             await tab.sleep(1)

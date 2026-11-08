@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api import advisor, enrich, meta, profile
+from app.api import advisor, enrich, images, meta, profile
 
 
 def _configure_advisor_logging() -> None:
@@ -76,6 +76,7 @@ def create_app() -> FastAPI:
     app.include_router(profile.router, prefix="/api")
     app.include_router(enrich.router, prefix="/api")
     app.include_router(advisor.router, prefix="/api")
+    app.include_router(images.router, prefix="/api")
     return app
 
 

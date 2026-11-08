@@ -79,7 +79,7 @@ flowchart LR
   SVC --> PSNP & HLTB & GUIDE & PSNAPI & MC & EXO
 ```
 
-前後端分離：前端是純 UI（呼叫後端 API），後端封裝所有爬蟲/API/快取邏輯。本機同時跑 backend（如 `:8000`）與 frontend dev server（如 `:5173`），前端以 proxy 或 `VITE_API_BASE` 指向後端。
+前後端分離：前端是純 UI（呼叫後端 API），後端封裝所有爬蟲/API/快取邏輯。本機同時跑 backend（如 `:8001`）與 frontend dev server（如 `:5174`），前端以 proxy 或 `VITE_API_BASE` 指向後端。
 
 ---
 
@@ -188,7 +188,7 @@ PSNProfiles 的遊戲標題要對應到 HLTB / Metacritic 的條目，靠名稱�
 ```
 frontend/
   index.html
-  vite.config.ts            # dev proxy /api -> :8000
+  vite.config.ts            # dev proxy /api -> :8001
   tailwind.config.ts        # Trophy Gold 主題色
   src/
     main.tsx, App.tsx, router.tsx

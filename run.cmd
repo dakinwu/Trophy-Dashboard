@@ -1,6 +1,6 @@
 @echo off
 rem Trophy Hunter Dashboard - double-click launcher (Windows).
-rem Starts the backend (:8000) + frontend (:5173) in two windows and opens the browser.
+rem Starts the backend (:8001) + frontend (:5174) in two windows and opens the browser.
 cd /d "%~dp0"
 
 if not exist "backend\.venv\Scripts\python.exe" (
@@ -28,10 +28,10 @@ if errorlevel 1 (
 )
 popd
 
-start "Trophy Hunter - backend"  cmd /k "cd backend && .venv\Scripts\python.exe -m uvicorn app.main:app --reload --reload-dir app --port 8000"
+start "Trophy Hunter - backend"  cmd /k "cd backend && .venv\Scripts\python.exe -m uvicorn app.main:app --reload --reload-dir app --port 8001"
 start "Trophy Hunter - frontend" cmd /k "cd frontend && npm run dev -- --force"
 
 echo Starting servers... a browser tab will open in a few seconds.
 echo (Close the two windows that opened to stop the app.)
 timeout /t 6 >nul
-start "" "http://localhost:5173/u/dakinwu20"
+start "" "http://localhost:5174/u/dakinwu20"

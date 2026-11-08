@@ -2,6 +2,7 @@ import { ListBox, Select } from '@heroui/react'
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ErrorState } from '../components/ErrorState'
+import { ImageWithFallback } from '../components/ImageWithFallback'
 import { PlatformLogos } from '../components/PlatformLogos'
 import { Spinner } from '../components/Spinner'
 import type { PsnprofilesTrophy, Trophy, TrophyGrade } from '../lib/api'
@@ -319,7 +320,7 @@ export function GameDetailPage() {
               'grid gap-4 rounded-xl border border-border bg-surface p-4 sm:grid-cols-[72px_minmax(0,1fr)_minmax(250px,auto)] sm:items-center',
             ].join(' ')}
           >
-            <img
+            <ImageWithFallback
               src={trophy.icon_url}
               alt=""
               loading="lazy"

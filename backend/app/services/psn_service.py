@@ -11,16 +11,20 @@ PSNProfiles "6th Jul 2024 ..." format).
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 import unicodedata
 from difflib import SequenceMatcher
+from datetime import datetime, timezone
 from typing import Callable, TypedDict
 
 from app.config import settings
+from app.services.trophy_images import is_official_trophy_image
 from app.models import (
     GameTrophyDetail,
     PlatinumGame,
+    PlatinumGallery,
     ProfileData,
     ProfileSummary,
     Trophy,
@@ -28,6 +32,84 @@ from app.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def build_platinum_gallery_from_psn(username: str, cache) -> PlatinumGallery | None:
+    """Fetch the owner's full platinum list without crawling every trophy.
+
+    Current title summaries establish ownership. Old cached artwork can be
+    reused by exact NP communication ID, regardless of statistics freshness.
+    Only platinum titles without known artwork need a per-title request.
+    """
+    if not settings.psn_npsso:
+        return None
+    me = _client(settings.psn_npsso)
+    if me.online_id.casefold() != username.casefold():
+        return None
+    summary = me.trophy_summary()
+    expected = int(summary.earned_trophies.platinum)
+    titles = list(me.trophy_titles())
+    display_names = _display_title_names(titles)
+    known: dict[str, dict] = {}
+    paths = []
+    for path in cache.base_dir.glob("psn_title_v2__*.json"):
+        try:
+            paths.append((path.stat().st_mtime, path))
+        except OSError:
+            continue
+    for _, path in sorted(paths, reverse=True):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        for row in payload.get("trophies", []):
+            if not isinstance(row, dict) or row.get("grade") != "Platinum":
+                continue
+            icon = str(row.get("icon_url") or "")
+            match = re.search(r"/(NPWR\d+_\d+)(?:_|/)", icon)
+            if match and is_official_trophy_image(icon):
+                known.setdefault(match.group(1), row)
+    trophies: list[Trophy] = []
+    for title, display_name in zip(titles, display_names, strict=True):
+        if not int(getattr(title.earned_trophies, "platinum", 0) or 0):
+            continue
+        cached_row = known.get(title.np_communication_id)
+        # A shared title cache proves artwork identity, not this player's
+        # earned date or current rarity. Do not copy another player's metadata.
+        row = ({"title": cached_row.get("title", ""),
+                "icon_url": cached_row["icon_url"], "timestamp": "",
+                "rarity_percent": "N/A", "grade": "Platinum",
+                "trophy_id": cached_row.get("trophy_id")}
+               if cached_row else None)
+        if row is None:
+            raw = _fetch_title_trophies(me, title) or []
+            platinum = next((t for t in raw if getattr(t, "earned", False)
+                             and _grade_name(t.trophy_type) == "Platinum"), None)
+            if platinum is None:
+                continue
+            earned_at = getattr(platinum, "earned_date_time", None)
+            rate = getattr(platinum, "trophy_earn_rate", None)
+            row = {
+                "title": getattr(platinum, "trophy_name", "") or "",
+                "timestamp": earned_at.isoformat() if earned_at else "",
+                "icon_url": getattr(platinum, "trophy_icon_url", "") or "",
+                "grade": "Platinum", "rarity_percent": f"{rate}%" if rate is not None else "N/A",
+                "rarity_source": "psn", "psn_rarity_percent": f"{rate}%" if rate is not None else None,
+                "trophy_id": _optional_int(getattr(platinum, "trophy_id", None)),
+            }
+        trophies.append(Trophy.model_validate({
+            **row, "game": display_name,
+            "platforms": _trophy_title_platforms(title) or ["UNKNOWN"],
+            "earned": True,
+        }))
+    trophies.sort(key=lambda trophy: trophy.timestamp, reverse=True)
+    return PlatinumGallery(
+        username=me.online_id, trophies=trophies, total_count=expected,
+        fetched_at=datetime.now(timezone.utc).isoformat(),
+        complete=len(trophies) == expected,
+    )
 
 _GRADE_NAMES = {"PLATINUM": "Platinum", "GOLD": "Gold", "SILVER": "Silver", "BRONZE": "Bronze"}
 _GRADE_KEYS = ("platinum", "gold", "silver", "bronze")

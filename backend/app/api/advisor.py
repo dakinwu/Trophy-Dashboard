@@ -30,5 +30,7 @@ def read_advisor_signals(
         results=get_advisor_signals_batch(
             request.candidates,
             cache_only=cached_only,
+            allow_title_api=request.allow_title_api,
+            retry_title_lookup=request.retry_title_lookup,
         )
     ).model_dump()

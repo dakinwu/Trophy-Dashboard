@@ -6,11 +6,12 @@ import { PlatinumMosaic } from '../components/PlatinumMosaic'
 import { PsnprofilesRankings } from '../components/PsnprofilesRankings'
 import { RarestTrophies } from '../components/RarestTrophies'
 import { ApiError } from '../lib/api'
-import { useProfile, useRefreshProfile } from '../lib/queries'
+import { usePlatinumGallery, useProfile, useRefreshProfile } from '../lib/queries'
 
 export function OverviewPage() {
   const { username } = useParams<{ username: string }>()
   const profileQuery = useProfile(username)
+  const galleryQuery = usePlatinumGallery(username, Boolean(profileQuery.data && !profileQuery.data.summary_only))
   const { refresh, refreshing, refreshError } = useRefreshProfile(username)
 
   if (!username) {
@@ -70,9 +71,13 @@ export function OverviewPage() {
       <PsnprofilesRankings summary={profile_summary} />
       <div className="grid gap-6 lg:grid-cols-2">
         <PlatinumMosaic
-          trophies={trophy_log}
+          trophies={galleryQuery.data?.trophies ?? (data.platinum_trophies?.length ? data.platinum_trophies : trophy_log)}
           platinumGames={data.platinum_games}
-          totalPlatinums={profile_summary.total_trophies.platinum}
+          totalPlatinums={galleryQuery.data?.total_count ?? profile_summary.total_trophies.platinum}
+          loading={galleryQuery.isFetching}
+          galleryError={galleryQuery.isError}
+          officialGallery={Boolean(galleryQuery.data)}
+          onRetry={() => void galleryQuery.refetch()}
         />
         <RarestTrophies trophies={trophy_log} />
       </div>

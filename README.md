@@ -60,13 +60,13 @@ visible nodriver-controlled Chrome session.
 ## Run
 
 - **Easiest — double-click `run.cmd`** in the project folder (File Explorer). It
-  starts the backend (`:8000`) + frontend (`:5173`) in two windows and opens your
+  starts the backend (`:8001`) + frontend (`:5174`) in two windows and opens your
   dashboard in the browser. Close those two windows to stop the app.
 - From a terminal instead: `run.cmd`, or `./run.ps1` (PowerShell).
 - **Manual:**
-  - Backend: `cd backend; .venv\Scripts\python.exe -m uvicorn app.main:app --reload --reload-dir app --port 8000`
+  - Backend: `cd backend; .venv\Scripts\python.exe -m uvicorn app.main:app --reload --reload-dir app --port 8001`
   - Frontend: `cd frontend; npm run dev`
-- Then open **http://localhost:5173** and enter your PSN ID.
+- Then open **http://localhost:5174** and enter your PSN ID.
 
 ## Notes
 

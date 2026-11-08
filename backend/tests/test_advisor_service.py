@@ -221,7 +221,7 @@ def test_advisor_never_sends_localized_alias_to_psnprofiles_search(monkeypatch):
     assert calls == [("LittleBigPlanet 3", "PS4", ["LittleBigPlanet 3"])]
 
 
-def test_advisor_retries_unmatched_title_once_with_grounded_alternative(monkeypatch):
+def test_advisor_retries_unmatched_title_once_with_explicit_grounded_alternative(monkeypatch):
     class Session:
         def __enter__(self):
             return self
@@ -271,7 +271,7 @@ def test_advisor_retries_unmatched_title_once_with_grounded_alternative(monkeypa
 
     monkeypatch.setattr(advisor_service, "get_psnprofiles_trophies", fake_lookup)
 
-    result = advisor_service.get_advisor_signals_batch([candidate])[0]
+    result = advisor_service.get_advisor_signals_batch([candidate], retry_title_lookup=True)[0]
 
     assert result.signals is not None
     assert result.signals.title == "Corrected Game"

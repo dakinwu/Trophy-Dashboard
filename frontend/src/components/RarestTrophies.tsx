@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Trophy } from '../lib/api'
+import { ImageWithFallback } from './ImageWithFallback'
 import {
   GRADE_COLOR_VAR,
   getRarestTrophies,
@@ -55,7 +56,7 @@ export function RarestTrophies({ trophies }: { trophies: Trophy[] }) {
               key={`${trophy.game}-${trophy.title}-${index}`}
               className="flex items-center gap-3 rounded-lg border border-border bg-bg/40 p-2 transition hover:-translate-y-0.5 hover:bg-bg/70"
             >
-              <img
+              <ImageWithFallback
                 src={trophy.icon_url}
                 alt=""
                 loading="lazy"

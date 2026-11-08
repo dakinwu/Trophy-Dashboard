@@ -122,11 +122,17 @@ def test_browser_scrolls_partial_trophy_page_until_complete():
 
     class FakeTab:
         def __init__(self):
-            self.pages = iter([partial, complete])
+            self.pages = [partial, complete]
+            self.reads = 0
             self.scrolls: list[int] = []
 
         async def get_content(self):
-            return next(self.pages)
+            page = self.pages[min(self.reads, 1)]
+            self.reads += 1
+            return page
+
+        async def evaluate(self, *_args, **_kwargs):
+            return {"url": "https://example.test/trophies/123", "readyState": "complete"}
 
         async def scroll_down(self, amount):
             self.scrolls.append(amount)

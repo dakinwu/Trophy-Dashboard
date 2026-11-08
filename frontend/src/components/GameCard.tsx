@@ -7,6 +7,7 @@ import { formatPlaytime } from '../lib/games'
 import { GRADE_COLOR_VAR, GRADE_LABEL } from '../lib/trophy'
 import { useHltb, usePsnprofilesGuide } from '../lib/queries'
 import { ExternalLinks } from './ExternalLinks'
+import { ImageWithFallback } from './ImageWithFallback'
 import { MagicCard } from './magicui/MagicCard'
 import { PlatformLogos } from './PlatformLogos'
 
@@ -44,10 +45,11 @@ export function GameCard({ summary, username }: { summary: GameSummary; username
           />
 
           <div className="relative flex items-start gap-3">
-            <img
+            <ImageWithFallback
               src={summary.iconUrl}
               alt=""
               loading="lazy"
+              fallbackKind="game"
               className="h-[4.5rem] w-[4.5rem] shrink-0 rounded-xl border border-white/15 object-cover shadow-xl shadow-black/30 ring-1 ring-accent/15 transition duration-300 group-hover/header:scale-[1.04] group-hover/header:ring-accent/40"
             />
             <div className="min-w-0 flex-1 pt-0.5">

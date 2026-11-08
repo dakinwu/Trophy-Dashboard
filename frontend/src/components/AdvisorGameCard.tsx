@@ -3,6 +3,7 @@ import type { AdvisorBundleResult, AdvisorGame, PsnprofilesAdvisorSignals } from
 import { advisorScore, type AdvisorWeights } from '../lib/advisor'
 import { formatPlaytime } from '../lib/games'
 import { MagicCard } from './magicui/MagicCard'
+import { ImageWithFallback } from './ImageWithFallback'
 import { PlatformLogos } from './PlatformLogos'
 
 const STATUS_LABEL = {
@@ -36,7 +37,18 @@ function formatPercent(value: number | null): string {
 }
 
 function SignalMetrics({ signals }: { signals: PsnprofilesAdvisorSignals }) {
+  const fetchedAt = signals.fetched_at ? new Date(signals.fetched_at) : null
+  const timestamp = fetchedAt && Number.isFinite(fetchedAt.getTime())
+    ? fetchedAt.toLocaleString('zh-TW') : null
   return (
+    <>
+    {signals.cache_status === 'stale' && (
+      <p className="mt-2 rounded-lg border border-accent/25 bg-accent/5 p-2 text-[11px] text-accent-bright">
+        顯示上次成功資料 · 尚待更新
+        {signals.refresh_error && <span className="mt-1 block text-muted">{signals.refresh_error}</span>}
+      </p>
+    )}
+    {timestamp && <p className="mt-2 text-[10px] text-muted">資料取得時間：{timestamp}</p>}
     <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
       <div>
         <dt className="text-muted">追蹤玩家數</dt>
@@ -55,6 +67,7 @@ function SignalMetrics({ signals }: { signals: PsnprofilesAdvisorSignals }) {
         <dd className="font-semibold tabular-nums text-text">{signals.platinum_achievers?.toLocaleString() ?? '無法取得'}</dd>
       </div>
     </dl>
+    </>
   )
 }
 
@@ -103,10 +116,11 @@ export function AdvisorGameCard({
           <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-surface/55 via-surface/90 to-bg" />
           <div className="relative flex items-start gap-3">
             {game.image_url ? (
-              <img
+              <ImageWithFallback
                 src={game.image_url}
                 alt=""
                 loading="lazy"
+                fallbackKind="game"
                 className="h-20 w-20 shrink-0 rounded-xl border border-white/15 object-cover shadow-xl shadow-black/30"
               />
             ) : (
@@ -258,6 +272,11 @@ export function AdvisorGameCard({
               </p>
             )}
             {analysisError && <p className="mt-2 text-xs text-red-300">{analysisError}</p>}
+            {signals?.cache_status === 'stale' && (
+              <Button type="button" onPress={onAnalyze} isPending={analyzing} isDisabled={analysisDisabled} variant="outline" className="mt-3 min-h-11 w-full">
+                更新 PSNProfiles 資料
+              </Button>
+            )}
           </div>
 
           <div className="mt-auto pt-4">
