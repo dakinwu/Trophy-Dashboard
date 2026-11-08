@@ -7,9 +7,20 @@ from fastapi import APIRouter, HTTPException, Query
 from sse_starlette.sse import EventSourceResponse
 
 from app.services.http import PSNProfilesFetchError
-from app.services.profile_service import get_game_detail, get_profile
+from app.services.profile_service import get_game_detail, get_platinum_gallery, get_profile
 
 router = APIRouter()
+
+
+@router.get("/profile/{username}/platinums")
+def read_platinum_gallery(username: str, refresh: bool = Query(False)):
+    try:
+        gallery = get_platinum_gallery(username, force=refresh)
+    except Exception:
+        raise HTTPException(status_code=503, detail="暫時無法更新白金清單，請稍後重試。") from None
+    if gallery is None:
+        raise HTTPException(status_code=503, detail="此玩家的官方白金清單目前無法取得。")
+    return gallery.model_dump()
 
 
 @router.get("/profile/{username}")

@@ -20,7 +20,7 @@ from app.models import (
     AdvisorSignalResult,
     PsnprofilesAdvisorSignals,
 )
-from app.services.http import PSNProfilesFetchError, create_session
+from app.services.http import PSNProfilesChallengeError, PSNProfilesFetchError, create_session
 from app.services.autopop_catalog import get_autopop_info
 from app.services.gemini_title_service import (
     TitleResolution,
@@ -36,7 +36,7 @@ from app.services.psn_service import (
     _stats_platform,
     _trophy_title_platform,
 )
-from app.services.psnprofiles_trophies_service import get_psnprofiles_trophies
+from app.services.psnprofiles_trophies_service import PSNProfilesTrophyReadError, get_psnprofiles_trophies
 
 logger = logging.getLogger(__name__)
 
@@ -609,8 +609,10 @@ def get_advisor_signals_batch(
     *,
     cache: FileCache | None = None,
     cache_only: bool = False,
+    allow_title_api: bool = True,
+    retry_title_lookup: bool = False,
 ) -> list[AdvisorSignalResult]:
-    """Enrich a bounded batch, retrying unmatched titles once with Gemini."""
+    """Retry page reads in the fetch layer; extra grounding is explicit opt-in."""
     cache = cache or FileCache(settings.cache_dir)
     logger.info(
         "Advisor analysis batch start count=%d cache_only=%s",
@@ -623,7 +625,8 @@ def get_advisor_signals_batch(
     resolutions = resolve_advisor_titles(
         candidates,
         cache=cache,
-        allow_api=not cache_only,
+        allow_api=not cache_only and allow_title_api,
+        allow_legacy_cache=cache_only,
     )
     bundle_resolutions = resolve_advisor_bundles(
         candidates,
@@ -632,7 +635,7 @@ def get_advisor_signals_batch(
             for key, resolution in resolutions.items()
         },
         cache=cache,
-        allow_api=not cache_only,
+        allow_api=not cache_only and allow_title_api,
     )
 
     def to_signals(data: dict | None) -> PsnprofilesAdvisorSignals | None:
@@ -646,6 +649,9 @@ def get_advisor_signals_batch(
             average_completion=data.get("average_completion"),
             platinum_achievers=data.get("platinum_achievers"),
             platinum_rate=data.get("platinum_rate"),
+            cache_status=data.get("cache_status", "fresh"),
+            fetched_at=data.get("fetched_at"),
+            refresh_error=data.get("refresh_error"),
         )
 
     session_context = nullcontext(None) if cache_only else create_session()
@@ -772,6 +778,7 @@ def get_advisor_signals_batch(
                         game=candidate.game,
                         platform=candidate.platform,
                         error=message or "找不到可用的英文遊戲名稱。",
+                        error_stage="title",
                     )
                 )
                 continue
@@ -806,10 +813,20 @@ def get_advisor_signals_batch(
                         game=candidate.game,
                         platform=candidate.platform,
                         signals=signals,
+                        error=("搜尋結果沒有符合名稱及平台的遊戲；請重試或確認遊戲版本。"
+                               if signals is None and not cache_only else None),
+                        error_stage="search" if signals is None and not cache_only else None,
                     )
                 )
-                if not cache_only and data is None and settings.gemini_api_key:
+                if not cache_only and data is None and settings.gemini_api_key and allow_title_api and retry_title_lookup:
                     retry_candidates.append((len(results) - 1, candidate, resolution))
+            except PSNProfilesTrophyReadError as exc:
+                logger.warning("Advisor trophy table unavailable original=%r platform=%s stage=trophy_page",
+                               candidate.game, candidate.platform or "UNKNOWN")
+                results.append(AdvisorSignalResult(
+                    game=candidate.game, platform=candidate.platform,
+                    error=str(exc), error_stage="trophy_page",
+                ))
             except PSNProfilesFetchError as exc:
                 logger.warning(
                     "Advisor analysis browser failure original=%r resolved=%r platform=%s error=%s",
@@ -818,14 +835,16 @@ def get_advisor_signals_batch(
                     candidate.platform or "UNKNOWN",
                     exc,
                 )
-                terminal_error = (
-                    "PSNProfiles 未能完成載入，目前仍可使用 PSN 官方收藏庫資料。"
-                )
+                message = "PSNProfiles 網頁讀取失敗；請稍後重試，目前保留既有資料。"
+                if isinstance(exc, PSNProfilesChallengeError):
+                    terminal_error = "PSNProfiles 需要手動完成網站驗證；請在瀏覽器完成後再重試。"
+                    message = terminal_error
                 results.append(
                     AdvisorSignalResult(
                         game=candidate.game,
                         platform=candidate.platform,
-                        error=terminal_error,
+                        error=message,
+                        error_stage="browser",
                     )
                 )
             except Exception as exc:
@@ -865,9 +884,9 @@ def get_advisor_signals_batch(
                     retry_resolution.error
                     or retry_resolution.is_trial
                     or not is_english_search_title(retry_resolution.search_title)
-                    or retry_resolution.search_title.casefold()
-                    == first_resolution.search_title.casefold()
                 ):
+                    logger.info("Advisor title retry skipped original=%r reason=unusable_resolution",
+                                candidate.game)
                     continue
                 retry_aliases = [
                     alias

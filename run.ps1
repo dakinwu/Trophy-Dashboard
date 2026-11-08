@@ -1,5 +1,5 @@
 # Trophy Hunter Dashboard - dev launcher (Windows).
-# Starts the FastAPI backend (:8000) and the Vite frontend (:5173) in two windows.
+# Starts the FastAPI backend (:8001) and the Vite frontend (:5174) in two windows.
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 
@@ -10,7 +10,7 @@ if (-not (Test-Path "$root\backend\.venv\Scripts\python.exe")) {
 
 Start-Process powershell -ArgumentList @(
     "-NoExit", "-Command",
-    "Set-Location '$root\backend'; .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --reload-dir app --port 8000"
+    "Set-Location '$root\backend'; .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --reload-dir app --port 8001"
 )
 
 Start-Process powershell -ArgumentList @(
@@ -18,5 +18,5 @@ Start-Process powershell -ArgumentList @(
     "Set-Location '$root\frontend'; npm run dev"
 )
 
-Write-Host "Backend  -> http://localhost:8000/api/health"
-Write-Host "Frontend -> http://localhost:5173"
+Write-Host "Backend  -> http://localhost:8001/api/health"
+Write-Host "Frontend -> http://localhost:5174"

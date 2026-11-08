@@ -7,6 +7,7 @@ import {
   getGameDetail,
   getHltb,
   getProfile,
+  getPlatinumGallery,
   getPsnprofilesGuide,
   getPsnprofilesStats,
   getPsnprofilesTrophies,
@@ -17,10 +18,22 @@ import {
   type HltbTimes,
   type Platform,
   type ProfileData,
+  type PlatinumGallery,
   type PsnprofilesGuide,
   type PsnprofilesStats,
   type PsnprofilesTrophyList,
 } from './api'
+
+/** Small independent gallery request; it never crawls the entire trophy log. */
+export function usePlatinumGallery(username: string | undefined, enabled: boolean) {
+  return useQuery<PlatinumGallery, ApiError>({
+    queryKey: ['platinum-gallery', username],
+    queryFn: () => getPlatinumGallery(username as string),
+    enabled: Boolean(username) && enabled,
+    retry: false,
+    staleTime: 24 * 60 * 60 * 1000,
+  })
+}
 
 export function useAdvisorLibrary(username: string | undefined) {
   return useQuery<AdvisorLibrary, ApiError>({

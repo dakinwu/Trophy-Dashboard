@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 _RESOLUTION_TTL = 180 * 24 * 3600
 _CJK = re.compile(r"[\u3400-\u9fff\uf900-\ufaff]")
-_LATIN = re.compile(r"[A-Za-z]{2}")
+_LATIN = re.compile(r"[A-Za-z]")
 _BUNDLE_MARKER = re.compile(
     r"\b(collection|bundle|anthology|trilogy|compilation)\b|"
     r"合集|合輯|套裝|合輯版|コレクション|トリロジー",
@@ -145,9 +145,9 @@ def _request_resolutions(
     if previous_search_titles:
         retry_instruction = (
             "Some inputs already failed a safe PSNProfiles search. For those inputs, "
-            "do not repeat previous_search_title: find a different canonical title "
-            "that PSNProfiles actually uses, or return an empty english_title when "
-            "no safe alternative exists.\n"
+            "verify previous_search_title and keep it when it is already correct. "
+            "Only return a different title when sources establish a correction. "
+            "Return an empty english_title only when the game cannot be verified.\n"
         )
     prompt = (
         "Use Google Search to resolve each PlayStation game to its canonical "
@@ -231,6 +231,7 @@ def resolve_advisor_titles(
     cache: FileCache | None = None,
     allow_api: bool = True,
     retry_attempts: dict[str, str] | None = None,
+    allow_legacy_cache: bool = True,
 ) -> dict[str, TitleResolution]:
     """Resolve titles, optionally forcing a second grounded attempt for misses."""
     cache = cache or FileCache(settings.cache_dir)
@@ -281,7 +282,7 @@ def resolve_advisor_titles(
         # result. The trophy cache performs its current safe title/platform
         # validation, and this legacy value is never used for a new web search or
         # promoted into the grounded cache namespace.
-        if cached is None and not allow_api:
+        if cached is None and not allow_api and allow_legacy_cache:
             cached = cache.load(_legacy_cache_key(candidate), _RESOLUTION_TTL)
             cached_source = "legacy_cache"
         if cached is None:
@@ -336,10 +337,7 @@ def resolve_advisor_titles(
             fallback = _source_title_override(fallback)
             title = psnprofiles_search_query(str(item.get("english_title") or ""))
             is_trial = bool(item.get("is_trial"))
-            previous_title = retry_attempts.get(candidate_key(candidate))
-            previous_query = psnprofiles_search_query(previous_title or "")
-            is_new_title = not previous_query or title.casefold() != previous_query.casefold()
-            if title and is_english_search_title(title) and is_new_title:
+            if title and is_english_search_title(title):
                 resolution = TitleResolution(title, is_trial, "gemini")
                 cache.save(
                     _cache_key(candidate),
@@ -352,5 +350,10 @@ def resolve_advisor_titles(
                     error="Gemini 沒有回傳可用的英文遊戲名稱。",
                 )
             resolved[candidate_key(candidate)] = resolution
+            logger.info(
+                "Advisor title validation input=%r platform=%s source=%s usable=%s reason=%s",
+                candidate.game, candidate.platform or "UNKNOWN", resolution.source,
+                resolution.error is None, "ok" if resolution.error is None else "missing_or_non_english_title",
+            )
 
     return resolved

@@ -6,12 +6,13 @@ import hashlib
 import logging
 import re
 from urllib.parse import quote_plus, urljoin, urlparse
+from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup
 
 from app.config import settings
 from app.core.cache import FileCache
-from app.services.http import create_session
+from app.services.http import PSNProfilesFetchError, PSNProfilesChallengeError, create_session
 from app.services.psnprofiles_guide_service import (
     PSNPROFILES_BASE_URL,
     _candidate_is_safe_match,
@@ -40,6 +41,10 @@ _PLATINUM_ACHIEVERS = re.compile(
     r"\b([\d,]+)\s*\((\d+(?:\.\d+)?)%\)\s+Platinum Achievers?\b",
     flags=re.IGNORECASE,
 )
+
+
+class PSNProfilesTrophyReadError(PSNProfilesFetchError):
+    """A matching game was found, but its trophy table was unavailable."""
 
 
 def _platform_tokens(text: str) -> set[str]:
@@ -108,25 +113,24 @@ def parse_game_search(
             value += 0.2 if wanted_platform in platforms else -0.2
         return value
 
-    game_url, (title, platforms) = max(candidates.items(), key=score)
-    if not _candidate_is_safe_match(game, title):
-        logger.warning(
-            "PSNProfiles search rejected unsafe title query=%r candidate=%r score=%.3f platforms=%s",
-            game,
-            title,
-            _candidate_score(game, title),
-            ",".join(sorted(platforms)) or "UNKNOWN",
-        )
+    eligible = []
+    for candidate in candidates.items():
+        _url, (title, platforms) = candidate
+        safe_title = _candidate_is_safe_match(game, title)
+        safe_platform = not wanted_platform or not platforms or wanted_platform in platforms
+        if safe_title and safe_platform:
+            eligible.append(candidate)
+        else:
+            logger.info(
+                "PSNProfiles candidate rejected query=%r candidate=%r reason=%s score=%.3f platforms=%s",
+                game, title, "title" if not safe_title else "platform",
+                _candidate_score(game, title), ",".join(sorted(platforms)) or "UNKNOWN",
+            )
+    if not eligible:
+        logger.warning("PSNProfiles no eligible candidates query=%r platform=%s examined=%d",
+                       game, wanted_platform or "UNKNOWN", len(candidates))
         return None
-    if wanted_platform and platforms and wanted_platform not in platforms:
-        logger.warning(
-            "PSNProfiles search rejected platform query=%r wanted=%s candidate=%r platforms=%s",
-            game,
-            wanted_platform,
-            title,
-            ",".join(sorted(platforms)),
-        )
-        return None
+    game_url, (title, platforms) = max(eligible, key=score)
     return {
         "title": title,
         "game_url": game_url,
@@ -276,6 +280,9 @@ def get_psnprofiles_trophies(
         return None
 
     cache = cache or FileCache(settings.cache_dir)
+    # Advisor/detail lookups are bounded; a single dead page must not consume
+    # the full profile-scrape timeout twice before the next game is processed.
+    read_timeout = min(settings.psnprofiles_browser_timeout, 45.0)
     search_titles: list[str] = []
     for title in [game, *(search_aliases or [])]:
         query = psnprofiles_search_query(title)
@@ -310,7 +317,23 @@ def get_psnprofiles_trophies(
             or not cached_platforms
             or wanted_platform in cached_platforms
         )
-        return bool(cached and title_matches and platform_matches)
+        return bool(cached and cached.get("trophies") and title_matches and platform_matches)
+
+    previous: dict | None = None
+    previous_key = key
+
+    def old_result(message: str | None = None) -> dict | None:
+        if previous is None:
+            return None
+        modified = cache.modified_at(previous_key)
+        return {
+            **previous,
+            "cache_status": "stale",
+            "fetched_at": previous.get("fetched_at") or (
+                datetime.fromtimestamp(modified, timezone.utc).isoformat() if modified else None
+            ),
+            "refresh_error": message,
+        }
 
     cached = cache.load(key, _TROPHY_LIST_TTL)
     if cached is not None:
@@ -323,6 +346,9 @@ def get_psnprofiles_trophies(
             )
             return cached
         cache.delete(key)
+    old = cache.load(key, float("inf"))
+    if old is not None and valid_cached_result(old):
+        previous = old
 
     # Search punctuation was tightened after Advisor analysis already existed.
     # Migrate validated legacy keys (for example ``Beyond: Two Souls``) to the
@@ -341,6 +367,9 @@ def get_psnprofiles_trophies(
         legacy_key = cache_key(legacy_title)
         legacy_cached = cache.load(legacy_key, _TROPHY_LIST_TTL)
         if legacy_cached is None:
+            old = cache.load(legacy_key, float("inf"))
+            if previous is None and old is not None and valid_cached_result(old):
+                previous, previous_key = old, legacy_key
             continue
         if valid_cached_result(legacy_cached):
             cache.save(key, legacy_cached)
@@ -354,6 +383,10 @@ def get_psnprofiles_trophies(
             return legacy_cached
         cache.delete(legacy_key)
     if cache_only:
+        if previous is not None:
+            logger.info("PSNProfiles restored last success title=%r platform=%s fetched_at=%s",
+                        game, platform or "UNKNOWN", old_result()["fetched_at"])
+            return old_result("資料已超過更新期限，目前顯示最後一次成功的資料。")
         logger.info(
             "PSNProfiles cache miss title=%r platform=%s aliases=%r",
             game,
@@ -366,7 +399,13 @@ def get_psnprofiles_trophies(
     session = session or create_session()
     try:
         match = None
-        for search_title in search_titles:
+        if previous is not None:
+            prior_url = urlparse(str(previous.get("game_url") or ""))
+            if prior_url.scheme == "https" and prior_url.netloc in {"psnprofiles.com", "www.psnprofiles.com"} and _GAME_PATH.fullmatch(prior_url.path):
+                match = {"title": previous["title"], "platform": previous.get("platform", ""),
+                         "game_url": str(previous["game_url"])}
+                logger.info("PSNProfiles refreshing known game URL title=%r url=%s", game, match["game_url"])
+        for search_title in ([] if match else search_titles):
             search_url = (
                 f"{PSNPROFILES_GAME_SEARCH_URL}?q={quote_plus(search_title)}"
             )
@@ -375,16 +414,22 @@ def get_psnprofiles_trophies(
                 search_title,
                 platform or "UNKNOWN",
             )
-            search_response = session.get(
-                search_url,
-                timeout=settings.psnprofiles_browser_timeout,
-            )
-            search_response.raise_for_status()
-            match = parse_game_search(
-                search_response.text,
-                search_title,
-                platform,
-            )
+            for attempt in range(2):
+                try:
+                    search_response = session.get(search_url, timeout=read_timeout)
+                    search_response.raise_for_status()
+                except PSNProfilesChallengeError:
+                    raise
+                except PSNProfilesFetchError:
+                    if attempt == 1:
+                        raise
+                    logger.warning("PSNProfiles search read retry query=%r reason=fetch_failed", search_title)
+                    continue
+                match = parse_game_search(search_response.text, search_title, platform)
+                if match is not None:
+                    break
+                logger.info("PSNProfiles search retry query=%r attempt=%d reason=no_safe_candidate",
+                            search_title, attempt + 1)
             if match is not None:
                 logger.info(
                     "PSNProfiles search matched title=%r platform=%s result=%r url=%s",
@@ -406,27 +451,42 @@ def get_psnprofiles_trophies(
                 platform or "UNKNOWN",
                 search_titles,
             )
-            return None
+            return old_result("搜尋尚未找到可安全比對的遊戲，保留最後成功資料。")
 
         logger.info("PSNProfiles trophy page start url=%s", match["game_url"])
-        trophy_response = session.get(
-            f"{match['game_url']}?order=rarity",
-            timeout=settings.psnprofiles_browser_timeout,
-        )
-        trophy_response.raise_for_status()
-        trophies = parse_trophy_page(trophy_response.text)
+        trophies = []
+        for attempt in range(2):
+            try:
+                trophy_response = session.get(
+                    f"{match['game_url']}?order=rarity",
+                    timeout=read_timeout,
+                )
+                trophy_response.raise_for_status()
+            except PSNProfilesChallengeError:
+                raise
+            except PSNProfilesFetchError:
+                if attempt == 1:
+                    raise PSNProfilesTrophyReadError("已找到相符遊戲，但獎盃頁讀取失敗；請稍後重試。") from None
+                logger.warning("PSNProfiles trophy read retry title=%r reason=fetch_failed", game)
+                continue
+            trophies = parse_trophy_page(trophy_response.text)
+            if trophies:
+                break
+            logger.warning("PSNProfiles trophy table retry title=%r url=%s attempt=%d reason=empty_table",
+                           game, match["game_url"], attempt + 1)
         if not trophies:
             logger.warning(
                 "PSNProfiles trophy page contained no trophy rows url=%s",
                 match["game_url"],
             )
-            return None
+            raise PSNProfilesTrophyReadError("已找到相符遊戲，但獎盃表格未完成載入；請重試原頁面。")
 
         result = {
             "title": match["title"],
             "platform": match["platform"],
             "game_url": match["game_url"],
             "trophies": trophies,
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
             **parse_game_stats(trophy_response.text),
         }
         cache.save(key, result)
@@ -439,6 +499,14 @@ def get_psnprofiles_trophies(
             result.get("platinum_achievers"),
         )
         return result
+    except PSNProfilesFetchError as exc:
+        if previous is not None:
+            logger.warning("PSNProfiles refresh failed; retained last success title=%r platform=%s reason=%s",
+                           game, platform or "UNKNOWN", type(exc).__name__)
+            message = ("網站需要手動驗證，保留最後成功資料。" if isinstance(exc, PSNProfilesChallengeError)
+                       else "更新暫時失敗，保留最後成功資料。")
+            return old_result(message)
+        raise
     finally:
         if owns_session:
             session.close()

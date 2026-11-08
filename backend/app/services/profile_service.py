@@ -3,17 +3,20 @@ import hashlib
 import json
 import logging
 import re
+import threading
 import unicodedata
 from datetime import datetime, timezone
 from typing import Callable
 
 from app.config import settings
 from app.core.cache import FileCache
-from app.models import GameTrophyDetail, ProfileData
+from app.models import GameTrophyDetail, PlatinumGallery, ProfileData, Trophy
 from app.services import psnprofiles
 from app.services.http import create_session
+from app.services.trophy_images import is_official_trophy_image
 from app.services.psn_service import (
     build_game_detail_from_psn,
+    build_platinum_gallery_from_psn,
     build_profile_from_psn,
     build_public_profile_summary_from_psn,
     psn_online_id,
@@ -22,6 +25,33 @@ from app.services.psn_service import (
 PROFILE_TTL = 86400  # 24 hours
 GAME_DETAIL_TTL = 6 * 3600
 logger = logging.getLogger(__name__)
+_GALLERY_LOCKS = [threading.Lock() for _ in range(8)]
+
+
+def get_platinum_gallery(username: str, *, force: bool = False, cache=None) -> PlatinumGallery | None:
+    cache = cache or FileCache(settings.cache_dir)
+    key = f"psn_platinum_gallery_v1/{username.casefold()}"
+    slot = int(hashlib.sha256(username.casefold().encode()).hexdigest()[:2], 16) % 8
+    with _GALLERY_LOCKS[slot]:
+        cached = cache.load(key, PROFILE_TTL)
+        if cached is not None and not force:
+            gallery = PlatinumGallery.model_validate(cached)
+            gallery.cache_status = "cached"
+            return gallery
+        previous = cache.load(key, float("inf"))
+        try:
+            gallery = build_platinum_gallery_from_psn(username, cache)
+        except Exception:
+            if previous is None:
+                raise
+            gallery = None
+        if gallery is not None and gallery.complete:
+            cache.save(key, gallery.model_dump())
+            return gallery
+        if previous is not None:
+            gallery = PlatinumGallery.model_validate(previous)
+            gallery.cache_status = "cached"
+        return gallery
 
 
 def _legacy_profile_source(profile: ProfileData) -> str | None:
@@ -165,6 +195,176 @@ def _with_cached_psnprofiles_rarities(
     return profile
 
 
+def _earned_stamp(value: str) -> str:
+    """Compare Sony ISO timestamps with PSNProfiles' English UTC log dates."""
+    value = re.sub(r"(\d+)(st|nd|rd|th)\b", r"\1", value, flags=re.IGNORECASE)
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            parsed = datetime.strptime(value, "%d %b %Y %I:%M:%S %p")
+        except ValueError:
+            return ""
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat()
+
+
+def _icon_name(value: str) -> str:
+    return _normalise_name(_game_name_without_platform(re.sub(r"[®™]", "", value)))
+
+
+def _official_icon_maps(
+    cache: FileCache,
+) -> tuple[dict[tuple[str, str], str], dict[tuple[str, str, str], set[str]]]:
+    """Artwork remains usable after statistics expire; include both Sony CDNs."""
+    by_game_and_title: dict[tuple[str, str], str] = {}
+    by_earned: dict[tuple[str, str, str], set[str]] = {}
+
+    paths = []
+    for pattern in ("psn_title_v2__*.json", "psn_game_detail_v2__*.json", "profile*__*.json"):
+        for path in cache.base_dir.glob(pattern):
+            try:
+                paths.append((path.stat().st_mtime, path))
+            except OSError:
+                continue
+    for _, path in sorted(paths, reverse=True):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        for trophy in payload.get("trophies", payload.get("trophy_log", [])):
+            if not isinstance(trophy, dict):
+                continue
+            icon_url = str(trophy.get("icon_url") or "")
+            if not is_official_trophy_image(icon_url):
+                continue
+            game = _icon_name(str(trophy.get("game") or ""))
+            title = _icon_name(str(trophy.get("title") or ""))
+            if not game or not title:
+                continue
+            by_game_and_title.setdefault((game, title), icon_url)
+            stamp = _earned_stamp(str(trophy.get("timestamp") or ""))
+            if stamp:
+                earned_key = (title, str(trophy.get("grade") or ""), stamp)
+                by_earned.setdefault(earned_key, set()).add(icon_url)
+
+    return by_game_and_title, by_earned
+
+
+def _replace_blocked_official_icons(
+    trophies: list[Trophy],
+    cache: FileCache,
+) -> int:
+    """Replace blocked PSNProfiles image URLs on a trophy list."""
+    if not any(t.icon_url.startswith("https://img.psnprofiles.com/") for t in trophies):
+        return 0
+    by_game_and_title, by_earned = _official_icon_maps(cache)
+    if not by_game_and_title:
+        return 0
+
+    replacements = 0
+    for trophy in trophies:
+        if not trophy.icon_url.startswith("https://img.psnprofiles.com/"):
+            continue
+        game = _icon_name(trophy.game)
+        title = _icon_name(trophy.title)
+        icon_url = by_game_and_title.get((game, title))
+        if icon_url is None:
+            # Localized game names may differ, but a trophy title alone is not
+            # identity: require the exact earned timestamp and grade as well.
+            candidates = by_earned.get((title, trophy.grade, _earned_stamp(trophy.timestamp)), set())
+            if len(candidates) == 1:
+                icon_url = next(iter(candidates))
+        if icon_url is not None:
+            trophy.icon_url = icon_url
+            replacements += 1
+    return replacements
+
+
+def _with_cached_official_icons(
+    profile: ProfileData,
+    cache: FileCache,
+) -> ProfileData:
+    """Replace blocked PSNProfiles trophy images with official cached icons.
+
+    PSNProfiles currently serves trophy images through a Cloudflare-protected
+    host.  The trophy data itself is still useful, so use recent official PSN
+    title caches when an exact game + trophy match is available.  This keeps
+    the fallback profile usable without changing its source or rarity data.
+    """
+    _with_platinum_gallery(profile, cache)
+    replacements = _replace_blocked_official_icons(
+        profile.trophy_log + profile.platinum_trophies, cache,
+    )
+
+    if replacements:
+        logger.info(
+            "Replaced %d blocked PSNProfiles trophy icons with official cached icons",
+            replacements,
+        )
+    return profile
+
+
+def _with_platinum_gallery(profile: ProfileData, cache: FileCache) -> None:
+    """Keep known earned platinum records if a fallback log stops partway.
+
+    Gallery snapshots are per player. They never add earned trophies to the
+    statistics/log and are replaced when a full platinum set is retrieved.
+    """
+    current = [t for t in profile.trophy_log if t.grade == "Platinum" and t.earned]
+    expected = profile.profile_summary.total_trophies.platinum
+    username = profile.profile_summary.username.casefold()
+    key = f"platinum_gallery_v1/{username}"
+    if profile.summary_only:
+        return
+    if len(current) == expected:
+        profile.platinum_trophies = current
+        cache.save(key, {"trophies": [t.model_dump() for t in current]})
+        return
+    saved_gallery = cache.load(f"psn_platinum_gallery_v1/{username}", float("inf"))
+    if saved_gallery and saved_gallery.get("complete") and saved_gallery.get("total_count") == expected:
+        profile.platinum_trophies = PlatinumGallery.model_validate(saved_gallery).trophies
+        return
+
+    def identity(trophy: Trophy) -> tuple[str, str]:
+        stamp = _earned_stamp(trophy.timestamp)
+        return (_icon_name(trophy.title), stamp or f"{trophy.game}:{trophy.platforms}")
+
+    known = {identity(t): t for t in current}
+    snapshot = cache.load(key, float("inf"))
+    historical = [snapshot] if snapshot else []
+    # Migrate existing on-disk player profiles without treating their old
+    # progress or rarity statistics as fresh.
+    for version in ("profile_v4", "profile_v3", "profile"):
+        candidate = cache.load(f"{version}/{username}", float("inf"))
+        if not isinstance(candidate, dict):
+            continue
+        owner = candidate.get("profile_summary", {}).get("username", "")
+        if str(owner).casefold() == username:
+            historical.append({"trophies": candidate.get("trophy_log", [])})
+    for payload in historical:
+        for row in payload.get("trophies", []):
+            if not isinstance(row, dict) or row.get("grade") != "Platinum":
+                continue
+            try:
+                trophy = Trophy.model_validate(row)
+            except ValueError:
+                continue
+            if trophy.earned:
+                known.setdefault(identity(trophy), trophy)
+    gallery = list(known.values())
+    # A smaller authoritative total can mean removed/hidden trophies. Do not
+    # resurrect a historical set that exceeds that total.
+    if len(gallery) > expected:
+        gallery = current
+    gallery.sort(key=lambda trophy: _earned_stamp(trophy.timestamp), reverse=True)
+    profile.platinum_trophies = gallery
+    cache.save(key, {"trophies": [t.model_dump() for t in gallery]})
+
+
 @functools.lru_cache(maxsize=1)
 def _token_owner_online_id() -> str | None:
     """The NPSSO token owner's PSN online id (cached per process); None if unset."""
@@ -198,7 +398,10 @@ def get_profile(
                 and not cached_profile.summary_only
             ):
                 return _with_cached_psnprofiles_rarities(
-                    _mark_cached_profile(cached_profile, cache, key),
+                    _with_cached_official_icons(
+                        _mark_cached_profile(cached_profile, cache, key),
+                        cache,
+                    ),
                     cache,
                 )
 
@@ -223,7 +426,10 @@ def get_profile(
                 if data is not None:
                     _mark_live_profile(data, "psn")
                     cache.save(key, data.model_dump())
-                    return _with_cached_psnprofiles_rarities(data, cache)
+                    return _with_cached_psnprofiles_rarities(
+                        _with_cached_official_icons(data, cache),
+                        cache,
+                    )
 
     owns_session = session is None
     session = session or create_session()
@@ -248,7 +454,10 @@ def get_profile(
 
     _mark_live_profile(data, "psnprofiles")
     cache.save(key, data.model_dump())
-    return _with_cached_psnprofiles_rarities(data, cache)
+    return _with_cached_psnprofiles_rarities(
+        _with_cached_official_icons(data, cache),
+        cache,
+    )
 
 
 def get_game_detail(
@@ -269,7 +478,9 @@ def get_game_detail(
     detail_key = f"game_detail_v2/{detail_digest}"
     cached_detail = cache.load(detail_key, GAME_DETAIL_TTL)
     if cached_detail is not None:
-        return GameTrophyDetail.model_validate(cached_detail)
+        detail = GameTrophyDetail.model_validate(cached_detail)
+        _replace_blocked_official_icons(detail.trophies, cache)
+        return detail
 
     if settings.psn_npsso:
         owner = _token_owner_online_id()
@@ -303,7 +514,7 @@ def get_game_detail(
             "UNKNOWN": 5,
         }[platform],
     )
-    return GameTrophyDetail(
+    detail = GameTrophyDetail(
         game=game,
         display_name=re.sub(
             r"\s+\((?:PS3|PS4|PS5|PS\s*VITA|PSVITA|PSPC)\)\s*$",
@@ -316,3 +527,5 @@ def get_game_detail(
         complete=False,
         source="profile_log",
     )
+    _replace_blocked_official_icons(detail.trophies, cache)
+    return detail

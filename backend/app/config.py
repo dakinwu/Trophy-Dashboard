@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     psn_npsso: str | None = None
     # Absolute so the cache location doesn't depend on the process's CWD.
     cache_dir: str = str(_REPO_ROOT / "backend" / "data_cache")
-    cors_origins: list[str] = ["http://localhost:5173"]
+    cors_origins: list[str] = ["http://localhost:5174"]
     scrape_user_agent: str = "TrophyHunter/2.0 (local; hello@example.com)"
     # Headed Chrome is intentional: PSNProfiles' Cloudflare challenge detects
     # headless automation.

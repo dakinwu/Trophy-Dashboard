@@ -53,7 +53,6 @@ class FakeMe:
                 play_duration=timedelta(hours=12, minutes=30),
             )
         ]
-
     def trophy_titles(self):
         return [self.title]
 
@@ -85,6 +84,44 @@ class FakeMe:
                 trophy_group_id="001",
             ),
         ]
+
+
+def test_platinum_gallery_uses_exact_title_id_artwork_without_refreshing_statistics(tmp_path, monkeypatch):
+    cache = FileCache(tmp_path)
+    me = FakeMe()
+    monkeypatch.setattr(psn_service.settings, "psn_npsso", "test-token")
+    monkeypatch.setattr(psn_service, "_client", lambda _: me)
+    icon = "https://psnobj.prod.dl.playstation.net/psnobj/NPWR12345_00/icon.PNG"
+    cache.save("psn_title_v2/old", {"trophies": [{
+        "game": "Localized Game", "title": "What now?", "grade": "Platinum",
+        "icon_url": icon, "timestamp": "2020-01-01T00:00:00Z",
+        "rarity_percent": "1%",
+    }]})
+
+    gallery = psn_service.build_platinum_gallery_from_psn("TestPlayer", cache)
+
+    assert gallery.complete is True
+    assert gallery.total_count == 1
+    assert gallery.trophies[0].icon_url == icon
+    assert gallery.trophies[0].game == me.title.title_name
+    assert gallery.trophies[0].timestamp == ""
+    assert me.trophy_calls == 0
+    assert me.title_stats_calls == 0
+
+
+def test_platinum_gallery_fetches_missing_artwork_only(tmp_path, monkeypatch):
+    cache = FileCache(tmp_path)
+    me = FakeMe()
+    monkeypatch.setattr(psn_service.settings, "psn_npsso", "test-token")
+    monkeypatch.setattr(psn_service, "_client", lambda _: me)
+
+    gallery = psn_service.build_platinum_gallery_from_psn("TestPlayer", cache)
+
+    assert gallery.complete
+    assert gallery.trophies[0].grade == "Platinum"
+    assert gallery.trophies[0].timestamp == "2026-07-25T00:00:00+00:00"
+    assert me.trophy_calls == 1
+    assert me.title_stats_calls == 0
 
 
 def test_match_playtime_titles_normalises_platform_suffixes():

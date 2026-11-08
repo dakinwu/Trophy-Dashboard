@@ -9,9 +9,13 @@ export default defineConfig({
     include: ['motion/react'],
   },
   server: {
+    // Keep the dashboard away from the default Vite port, which is already
+    // used by another local service on this machine.
+    port: 5174,
+    strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:8001',
         changeOrigin: true,
       },
     },

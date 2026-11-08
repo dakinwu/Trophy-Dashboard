@@ -2,7 +2,7 @@
  * Typed fetch client for the Trophy Hunter Dashboard backend.
  *
  * All requests go through the `/api/*` prefix, which Vite's dev server
- * proxies to http://localhost:8000 (see vite.config.ts). In production this
+ * proxies to http://localhost:8001 (see vite.config.ts). In production this
  * assumes the same-origin API is reverse-proxied under `/api`.
  */
 
@@ -50,6 +50,8 @@ export interface ProfileData {
   profile_summary: ProfileSummary
   trophy_log: Trophy[]
   platinum_games?: PlatinumGame[]
+  /** Known earned platinums retained independently of a partial fallback log. */
+  platinum_trophies?: Trophy[]
   summary_only?: boolean
   profile_source?: 'psn' | 'psnprofiles' | null
   cache_status?: 'live' | 'cached' | null
@@ -62,6 +64,19 @@ export interface PlatinumGame {
   game: string
   platforms: Platform[]
   icon_url: string
+}
+
+export interface PlatinumGallery {
+  username: string
+  trophies: Trophy[]
+  total_count: number
+  fetched_at: string
+  complete: boolean
+  cache_status: 'live' | 'cached'
+}
+
+export function getPlatinumGallery(username: string): Promise<PlatinumGallery> {
+  return requestJson<PlatinumGallery>(`/api/profile/${encodeURIComponent(username)}/platinums`)
 }
 
 export interface GameTrophyDetail {
@@ -276,6 +291,9 @@ export interface PsnprofilesAdvisorSignals {
   average_completion: number | null
   platinum_achievers: number | null
   platinum_rate: number | null
+  cache_status?: 'fresh' | 'stale'
+  fetched_at?: string | null
+  refresh_error?: string | null
 }
 
 export interface AdvisorBundleChildResult {
@@ -300,6 +318,7 @@ export interface AdvisorSignalResult {
   bundle: AdvisorBundleResult | null
   error: string | null
   retryable: boolean
+  error_stage?: 'title' | 'search' | 'trophy_page' | 'browser' | null
 }
 
 export interface AdvisorBatchResponse {
