@@ -20,6 +20,17 @@ ENV/
 # Brainstorming visual companion
 .superpowers/
 
+# Local assistant/editor state and private development notes
+/.claude/
+/.codex/
+/.agents/
+/docs/superpowers/
+/docs/private/
+/artifacts/
+/deliverables/
+AGENTS.local.md
+.idea/
+
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
@@ -55,10 +66,19 @@ dist/
 *.spec
 
 # Test output
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
 htmlcov/
 coverage.xml
 *.cover
 *.py,cover
+*.tsbuildinfo
+
+# JavaScript dependencies (also covered by frontend/.gitignore)
+node_modules/
 
 # Personal or local files
 NOTES.md

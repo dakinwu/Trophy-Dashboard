@@ -11,6 +11,11 @@ then fall back to PSNProfiles through a visible nodriver-controlled Chrome
 session. A public summary may not include individual trophy records or playtime.
 This is an unofficial personal tool, not affiliated with Sony or the data sites.
 
+**Local use only:** the backend has no multi-user authentication or authorization
+layer. Do not expose it through a public host, tunnel or port forwarding. A public
+source repository does not make this a safe public web service. Read
+[SECURITY.md](SECURITY.md) before running or sharing data.
+
 ## Architecture
 
 - **`backend/`** — FastAPI. PSN official API (PSNAWP) as the primary source for the
@@ -69,8 +74,8 @@ This is an unofficial personal tool, not affiliated with Sony or the data sites.
 
 - **Easiest — double-click `run.cmd`** in the project folder (File Explorer). It
   starts the backend (`:8001`) + frontend (`:5174`) in two windows and opens your
-  dashboard in the browser. The launcher currently opens `/u/dakinwu20`; use the
-  profile search to change accounts. Close those two windows to stop the app.
+  dashboard's empty profile-search page in the browser. Enter your own PSN ID;
+  no personal account is hardcoded. Close those two windows to stop the app.
   Missing frontend packages are synchronized before startup.
 - From a terminal instead: `run.cmd`, or `./run.ps1` (PowerShell). The PowerShell
   launcher starts both services; open the frontend URL yourself.
@@ -192,6 +197,12 @@ use game covers instead of individual trophy artwork or earned dates.
 
 `.env`, `backend/data_cache/` and `backend/logs/` are excluded from Git. Review and
 redact account information, credentials and other private data before sharing logs.
+Local assistant settings, private planning notes, dependencies, build output and
+test artifacts are also ignored. Source code, dependency lockfiles, anonymized
+test fixtures, public documentation and the original license remain tracked.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and
+[docs/ROADMAP.md](docs/ROADMAP.md) for current scope and follow-up work.
 
 ## Validation
 
