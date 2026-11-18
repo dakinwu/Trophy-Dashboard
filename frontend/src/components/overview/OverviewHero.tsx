@@ -454,7 +454,7 @@ export function OverviewHero({ data, refreshing, refreshError, onRefresh }: Over
               查看遊戲
             </Button>
             <Button type="button" onPress={() => navigate(`${profileBase}/advisor`)} variant="outline" className="min-h-11">
-              獎盃顧問
+              獎盃建議
             </Button>
             <Button type="button" onPress={() => navigate(`${profileBase}/timeline`)} variant="outline" className="min-h-11">
               時間軸

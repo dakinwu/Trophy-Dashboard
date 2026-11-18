@@ -5,7 +5,7 @@ import { Link, NavLink, useMatch, useNavigate } from 'react-router-dom'
 const NAV_ITEMS = [
   { label: '總覽', subpath: '' },
   { label: '遊戲', subpath: '/games' },
-  { label: '獎盃顧問', subpath: '/advisor' },
+  { label: '獎盃建議', subpath: '/advisor' },
   { label: '時間軸', subpath: '/timeline' },
   { label: '里程碑', subpath: '/milestones' },
   { label: '資料', subpath: '/data' },

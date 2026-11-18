@@ -228,7 +228,7 @@ export function AdvisorPage() {
   )
 
   if (!username) {
-    return <ErrorState title="尚未選擇玩家" message="請先在上方搜尋你的 PSN ID，再開啟獎盃顧問。" />
+    return <ErrorState title="尚未選擇玩家" message="請先在上方搜尋你的 PSN ID，再開啟獎盃建議。" />
   }
   if (libraryQuery.isLoading) return <AdvisorLoading username={username} />
   if (libraryQuery.isError) {
@@ -239,7 +239,7 @@ export function AdvisorPage() {
     if (error instanceof ApiError && error.status === 503) {
       return <ErrorState title="無法讀取 PlayStation 收藏庫" message="請確認專案根目錄 .env 內的 PSN_NPSSO 仍有效，再重新嘗試。" />
     }
-    return <ErrorState title="無法載入獎盃顧問" message="目前無法載入收藏庫資料，請稍後再試。" />
+    return <ErrorState title="無法載入獎盃建議" message="目前無法載入收藏庫資料，請稍後再試。" />
   }
   const library = libraryQuery.data
   if (!library) return <ErrorState title="沒有收藏庫資料" message="Sony 沒有回傳收藏庫內容。" />
@@ -348,7 +348,7 @@ export function AdvisorPage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">收藏庫決策中心</p>
-              <h1 className="mt-2 text-2xl font-black text-text sm:text-3xl">獎盃顧問</h1>
+              <h1 className="mt-2 text-2xl font-black text-text sm:text-3xl">獎盃建議</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
                 從 {library.username} 目前有效的 PlayStation 數位收藏庫中挑選下一款遊戲，包含從未啟動過的作品。
               </p>
