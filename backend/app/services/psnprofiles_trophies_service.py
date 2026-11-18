@@ -18,6 +18,7 @@ from app.services.psnprofiles_guide_service import (
     _candidate_is_safe_match,
     _candidate_score,
     _legacy_psnprofiles_search_query,
+    fallback_search_titles,
     psnprofiles_search_query,
 )
 
@@ -305,6 +306,10 @@ def get_psnprofiles_trophies(
             search_titles.append(query)
     if not search_titles:
         return None
+    # Searches run in order and stop at the first safe match, so numeral
+    # variants (16 <-> XVI) and titles without edition suffixes are only tried
+    # after every given title failed.
+    search_titles = fallback_search_titles(search_titles)
 
     def cache_key(title: str) -> str:
         cache_seed = f"{title.casefold()}:{(platform or '').upper()}"

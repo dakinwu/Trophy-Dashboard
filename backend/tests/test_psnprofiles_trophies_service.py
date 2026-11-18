@@ -181,3 +181,76 @@ def test_parse_game_search_prefers_most_owned_of_equal_regional_lists():
 
     assert result is not None
     assert result["game_url"] == "https://psnprofiles.com/trophies/5286-bioshock-2"
+
+
+def test_failed_search_retries_with_roman_numeral_title(tmp_path):
+    no_match = """
+    <table class="zebra"><tr><td>
+      <a class="title" href="/trophies/1-final-fantasy-x-x-2-hd">Final Fantasy X / X-2 HD</a>
+      <span>PS4</span><span>100 OWNERS</span></td></tr></table>
+    """
+    roman_match = """
+    <table class="zebra"><tr><td>
+      <a class="title" href="/trophies/21321-final-fantasy-xvi">Final Fantasy XVI</a>
+      <span>PS5</span><span>183,817 OWNERS</span></td></tr></table>
+    """
+
+    class Session:
+        def __init__(self):
+            self.calls: list[str] = []
+
+        def get(self, url, **_kwargs):
+            self.calls.append(url)
+            if "/search/games" in url:
+                return FakeResponse(roman_match if "XVI" in url else no_match)
+            return FakeResponse(load_fixture("psnprofiles_trophy_page.html"))
+
+    session = Session()
+    result = get_psnprofiles_trophies(
+        "Final Fantasy 16", "PS5", cache=FileCache(tmp_path), session=session
+    )
+
+    assert result is not None
+    assert result["title"] == "Final Fantasy XVI"
+    assert "https://psnprofiles.com/search/games?q=Final+Fantasy+XVI" in session.calls
+
+
+def test_failed_search_retries_without_edition_suffix(tmp_path):
+    unrelated = """
+    <table class="zebra"><tr><td>
+      <a class="title" href="/trophies/4671-dead-island-definitive-edition">Dead Island: Definitive Edition</a>
+      <span>PS4</span><span>226,481 OWNERS</span></td></tr></table>
+    """
+    mafia = """
+    <table class="zebra">
+      <tr><td><a class="title" href="/trophies/372-mafia-ii">Mafia II</a>
+        <span>PS3</span><span>345,968 OWNERS</span></td></tr>
+      <tr><td><a class="title" href="/trophies/10846-mafia-ii">Mafia II</a>
+        <span>PS4</span><span>154,329 OWNERS</span></td></tr>
+    </table>
+    """
+
+    class Session:
+        def __init__(self):
+            self.queries: list[str] = []
+
+        def get(self, url, **_kwargs):
+            if "/search/games" in url:
+                query = url.split("q=", 1)[1]
+                self.queries.append(query)
+                return FakeResponse(mafia if query == "Mafia+II" else unrelated)
+            return FakeResponse(load_fixture("psnprofiles_trophy_page.html"))
+
+    session = Session()
+    result = get_psnprofiles_trophies(
+        "Mafia 2 Definitive Edition", "PS4", cache=FileCache(tmp_path), session=session
+    )
+
+    assert result is not None
+    assert result["game_url"] == "https://psnprofiles.com/trophies/10846-mafia-ii"
+    assert list(dict.fromkeys(session.queries)) == [
+        "Mafia+2+Definitive+Edition",
+        "Mafia+II+Definitive+Edition",
+        "Mafia+2",
+        "Mafia+II",
+    ]

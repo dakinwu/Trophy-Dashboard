@@ -100,3 +100,59 @@ def test_guide_search_rejects_single_shared_word():
     </article>
     """
     assert parse_guide_search(html, "Where Winds Meet") is None
+
+
+def test_safe_title_match_treats_roman_and_arabic_sequels_alike():
+    from app.services.psnprofiles_guide_service import _candidate_score
+
+    safe_pairs = [
+        ("Final Fantasy 16", "Final Fantasy XVI"),
+        ("Mafia 2", "Mafia II"),
+        ("Street Fighter 5", "Street Fighter V"),
+        ("Mafia 2 Definitive Edition", "Mafia II: Definitive Edition"),
+        ("Final Fantasy XIV", "FINAL FANTASY XIV Online"),
+    ]
+    unsafe_pairs = [
+        ("Final Fantasy XV", "Final Fantasy XVI"),
+        ("Final Fantasy 15", "Final Fantasy XVI"),
+        ("Mafia 3", "Mafia II"),
+    ]
+
+    assert all(_candidate_is_safe_match(w, a) for w, a in safe_pairs)
+    assert not any(_candidate_is_safe_match(w, a) for w, a in unsafe_pairs)
+    assert _candidate_score("Final Fantasy 16", "Final Fantasy XVI") == 1.0
+
+
+def test_numeral_search_variants_swap_roman_and_arabic_numbers():
+    from app.services.psnprofiles_guide_service import numeral_search_variants
+
+    assert numeral_search_variants("Final Fantasy 16") == ["Final Fantasy XVI"]
+    assert numeral_search_variants("Street Fighter V") == ["Street Fighter 5"]
+    assert numeral_search_variants("Mafia II Definitive Edition") == [
+        "Mafia 2 Definitive Edition"
+    ]
+    # Lone "I", sports years and plain titles are left alone.
+    assert numeral_search_variants("I Am Setsuna") == []
+    assert numeral_search_variants("F1 25") == []
+    assert numeral_search_variants("NBA 2K25") == []
+    assert numeral_search_variants("Journey") == []
+
+
+def test_fallback_search_titles_try_numerals_then_shorter_titles():
+    from app.services.psnprofiles_guide_service import fallback_search_titles
+
+    assert fallback_search_titles(["Mafia 2 Definitive Edition"]) == [
+        "Mafia 2 Definitive Edition",
+        "Mafia II Definitive Edition",
+        "Mafia 2",
+        "Mafia II",
+    ]
+    assert fallback_search_titles(["Yakuza 5 Remastered", "Yakuza 5"]) == [
+        "Yakuza 5 Remastered",
+        "Yakuza 5",
+        "Yakuza V Remastered",
+        "Yakuza V",
+    ]
+    assert fallback_search_titles(["Journey"]) == ["Journey"]
+    # Never strip a title down to nothing.
+    assert fallback_search_titles(["Remastered"]) == ["Remastered"]
