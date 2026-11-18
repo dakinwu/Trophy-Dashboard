@@ -58,6 +58,9 @@ backend/logs/
 *.temp
 *.zone.identifier
 
+# Locally built Windows launcher (see launcher/build.ps1)
+/TrophyHunter.exe
+
 # Python packaging
 build/
 dist/
