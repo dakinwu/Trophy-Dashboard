@@ -27,6 +27,7 @@ PSNPROFILES_GAME_SEARCH_URL = f"{PSNPROFILES_BASE_URL}/search/games"
 _TROPHY_LIST_TTL = 30 * 24 * 3600
 _GAME_PATH = re.compile(r"^/trophies/\d+(?:-[^/?#]+)?/?$")
 _TROPHY_PATH = re.compile(r"^/trophy/\d+(?:-[^/?#]+)?/\d+(?:-[^/?#]+)?/?$")
+_OWNERS = re.compile(r"([\d,]+)\s*OWNERS?\b", re.IGNORECASE)
 _PERCENT = re.compile(r"\b\d+(?:\.\d+)?%")
 _RARITY_LABEL = re.compile(
     r"\b(Ultra Rare|Very Rare|Rare|Uncommon|Common)\b",
@@ -67,6 +68,7 @@ def parse_game_search(
     """Select the best title/platform match from PSNProfiles game search."""
     soup = BeautifulSoup(html, "html.parser")
     candidates: dict[str, tuple[str, set[str]]] = {}
+    owners_by_url: dict[str, int] = {}
 
     for anchor in soup.select("a[href]"):
         absolute_url = urljoin(PSNPROFILES_BASE_URL, anchor.get("href", ""))
@@ -94,6 +96,12 @@ def parse_game_search(
             absolute_url.rstrip("/"),
             (title, _platform_tokens(container_text)),
         )
+        owners_match = _OWNERS.search(container_text)
+        if owners_match:
+            owners_by_url.setdefault(
+                absolute_url.rstrip("/"),
+                int(owners_match.group(1).replace(",", "")),
+            )
 
     if not candidates:
         page_title = soup.title.get_text(" ", strip=True) if soup.title else "unknown"
@@ -130,7 +138,12 @@ def parse_game_search(
         logger.warning("PSNProfiles no eligible candidates query=%r platform=%s examined=%d",
                        game, wanted_platform or "UNKNOWN", len(candidates))
         return None
-    game_url, (title, platforms) = max(eligible, key=score)
+    # Equal title/platform matches are usually regional copies of one list
+    # (e.g. "BioShock 2 • JP" with 204 owners); prefer the most-owned one.
+    game_url, (title, platforms) = max(
+        eligible,
+        key=lambda candidate: (score(candidate), owners_by_url.get(candidate[0], -1)),
+    )
     return {
         "title": title,
         "game_url": game_url,

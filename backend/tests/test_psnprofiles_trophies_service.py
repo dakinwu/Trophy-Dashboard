@@ -156,3 +156,28 @@ def test_cache_only_migrates_valid_legacy_punctuation_key(tmp_path):
     assert result == cached
     assert cache.load(current_key, 60) == cached
     assert cache.load(legacy_key, 60) is None
+
+
+def test_parse_game_search_prefers_most_owned_of_equal_regional_lists():
+    # PSNProfiles lists regional trophy lists separately; the first result can
+    # be a tiny regional list (here JP, 204 owners) rather than the main one.
+    html = """
+    <table class="zebra">
+      <tr><td><a class="title" href="/trophies/10873-bioshock-2">BioShock 2</a>
+        <span>• JP</span><span class="platform">PS4</span>
+        <span>56.12% AVERAGE</span><span>204 OWNERS</span></td></tr>
+      <tr><td><a class="title" href="/trophies/5286-bioshock-2">BioShock 2</a>
+        <span class="platform">PS4</span>
+        <span>39.05% AVERAGE</span><span>158,620 OWNERS</span></td></tr>
+      <tr><td><a class="title" href="/trophies/223-bioshock-2">BioShock 2</a>
+        <span class="platform">PS3</span>
+        <span>25.36% AVERAGE</span><span>318,632 OWNERS</span></td></tr>
+      <tr><td><a class="title" href="/trophies/10871-bioshock-2">BioShock 2</a>
+        <span>• EU</span><span class="platform">PS4</span>
+        <span>32.38% AVERAGE</span><span>4,377 OWNERS</span></td></tr>
+    </table>
+    """
+    result = parse_game_search(html, "BioShock 2", "PS4")
+
+    assert result is not None
+    assert result["game_url"] == "https://psnprofiles.com/trophies/5286-bioshock-2"

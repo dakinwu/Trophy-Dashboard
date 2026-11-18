@@ -31,7 +31,7 @@ _BUNDLE_MARKER = re.compile(
 )
 _KNOWN_BUNDLES: dict[str, tuple[str, ...]] = {
     "bioshock the collection": (
-        "BioShock Remastered",
+        "BioShock",  # PSNProfiles names the PS4 remaster list just "BioShock"
         "BioShock 2 Remastered",
         "BioShock Infinite",
     ),

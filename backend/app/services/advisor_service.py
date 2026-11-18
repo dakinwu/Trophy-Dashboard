@@ -725,10 +725,17 @@ def get_advisor_signals_batch(
                         resolution.search_title,
                         exc,
                     )
-                    terminal_error = (
-                        "PSNProfiles 瀏覽器載入失敗，請確認可見的 Chrome 視窗已完成驗證。"
-                    )
-                    bundle_error = terminal_error
+                    # Like single games, only a Cloudflare challenge stops the
+                    # batch; one slow or failed page fails just this bundle.
+                    if isinstance(exc, PSNProfilesChallengeError):
+                        terminal_error = (
+                            "PSNProfiles 需要手動完成網站驗證；請在瀏覽器完成後再重試。"
+                        )
+                        bundle_error = terminal_error
+                    else:
+                        bundle_error = (
+                            "PSNProfiles 網頁讀取失敗；請稍後重試，目前保留既有資料。"
+                        )
                 except Exception as exc:
                     logger.exception(
                         "Advisor bundle analysis unexpected failure title=%r: %s",

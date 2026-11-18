@@ -322,12 +322,12 @@ def test_known_multi_trophy_list_package_analyzes_each_child(monkeypatch):
     assert result.bundle.source == "curated"
     assert result.bundle.complete is True
     assert [child.game for child in result.bundle.children] == [
-        "BioShock Remastered",
+        "BioShock",
         "BioShock 2 Remastered",
         "BioShock Infinite",
     ]
     assert calls == [
-        ("BioShock Remastered", "PS4"),
+        ("BioShock", "PS4"),
         ("BioShock 2 Remastered", "PS4"),
         ("BioShock Infinite", "PS4"),
     ]
@@ -696,3 +696,82 @@ def test_known_cross_gen_game_carries_autopop_status_to_merged_card():
     assert merged[0].available_platforms == ["PS5", "PS4"]
     assert merged[0].ps4_to_ps5_autopop == "full"
     assert merged[0].autopop_source_url
+
+
+def _session_factory():
+    class Session:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+    return Session
+
+
+def _signals(game: str, platform: str) -> dict:
+    return {
+        "title": game,
+        "platform": platform,
+        "game_url": "https://psnprofiles.com/trophies/1-game",
+        "owners": 100,
+        "average_completion": 50.0,
+        "platinum_achievers": 25,
+        "platinum_rate": 25.0,
+    }
+
+
+def test_bundle_page_timeout_does_not_fail_the_rest_of_the_batch(monkeypatch, tmp_path):
+    from app.services.http import PSNProfilesFetchError
+
+    monkeypatch.setattr(advisor_service, "create_session", _session_factory())
+    monkeypatch.setattr(advisor_service.settings, "gemini_api_key", "")
+    calls = []
+
+    def fake_lookup(game, platform, **_kwargs):
+        calls.append(game)
+        if game == "BioShock":
+            raise PSNProfilesFetchError("Timed out after 45s waiting for PSNProfiles")
+        return _signals(game, platform)
+
+    monkeypatch.setattr(advisor_service, "get_psnprofiles_trophies", fake_lookup)
+
+    bundle, other = advisor_service.get_advisor_signals_batch(
+        [
+            AdvisorCandidate(game="BioShock: The Collection", platform="PS4"),
+            AdvisorCandidate(game="Outer Wilds", platform="PS5"),
+        ],
+        cache=FileCache(tmp_path),
+    )
+
+    assert bundle.error is not None
+    assert bundle.bundle is not None and bundle.bundle.complete is False
+    assert other.error is None
+    assert other.signals is not None and other.signals.title == "Outer Wilds"
+    assert "Outer Wilds" in calls
+
+
+def test_bundle_cloudflare_challenge_still_stops_the_batch(monkeypatch, tmp_path):
+    from app.services.http import PSNProfilesChallengeError
+
+    monkeypatch.setattr(advisor_service, "create_session", _session_factory())
+    monkeypatch.setattr(advisor_service.settings, "gemini_api_key", "")
+    calls = []
+
+    def fake_lookup(game, platform, **_kwargs):
+        calls.append(game)
+        raise PSNProfilesChallengeError("需要手動驗證")
+
+    monkeypatch.setattr(advisor_service, "get_psnprofiles_trophies", fake_lookup)
+
+    bundle, other = advisor_service.get_advisor_signals_batch(
+        [
+            AdvisorCandidate(game="BioShock: The Collection", platform="PS4"),
+            AdvisorCandidate(game="Outer Wilds", platform="PS5"),
+        ],
+        cache=FileCache(tmp_path),
+    )
+
+    assert bundle.error is not None
+    assert other.error == bundle.error
+    assert calls == ["BioShock"]
