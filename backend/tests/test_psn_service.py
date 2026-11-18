@@ -300,3 +300,135 @@ def test_build_game_detail_keeps_unearned_trophies_and_caches(monkeypatch, tmp_p
     assert first.trophies[1].timestamp == ""
     assert first.trophies[1].is_dlc is True
     assert me.trophy_calls == 1
+
+
+# --- rolling per-title refresh ----------------------------------------------
+
+
+class FakeLibraryMe(FakeMe):
+    """A library of several titles; records which titles hit the trophy API."""
+
+    def __init__(self, count: int, *, fail: bool = False):
+        super().__init__()
+        self.fail = fail
+        self.fetched: list[str] = []
+        self.titles = [
+            SimpleNamespace(
+                title_icon_url="https://example/game.png",
+                earned_trophies=SimpleNamespace(platinum=0, gold=1, silver=0, bronze=0),
+                title_name=f"Game {index}",
+                title_platform=[SimpleNamespace(value="PS5")],
+                np_communication_id=f"NPWR0000{index}_00",
+                last_updated_datetime=datetime(2026, 7, 25, tzinfo=timezone.utc),
+                progress=10,
+            )
+            for index in range(count)
+        ]
+
+    def trophy_titles(self):
+        return list(self.titles)
+
+    def trophies(self, **kwargs):
+        if self.fail:
+            raise RuntimeError("PSN unreachable")
+        self.fetched.append(kwargs["np_communication_id"])
+        return [
+            SimpleNamespace(
+                trophy_id=1,
+                earned=True,
+                earned_date_time=datetime(2026, 7, 25, tzinfo=timezone.utc),
+                trophy_earn_rate=40.0,
+                trophy_icon_url="https://example/fresh.png",
+                trophy_name="Fresh",
+                trophy_type=SimpleNamespace(name="GOLD"),
+                trophy_group_id="default",
+            )
+        ]
+
+
+def _seed_title_cache(cache: FileCache, title, *, age_days: float) -> None:
+    import os
+    import time
+
+    key = psn_service._title_cache_key(title)
+    cache.save(
+        key,
+        {
+            "trophies": [
+                {
+                    "game": title.title_name,
+                    "icon_url": "https://example/old.png",
+                    "title": "Old",
+                    "timestamp": "2026-07-25T00:00:00+00:00",
+                    "rarity_percent": "50.0%",
+                    "rarity_source": "psn",
+                    "psn_rarity_percent": "50.0%",
+                    "grade": "Gold",
+                    "trophy_id": 1,
+                    "is_dlc": False,
+                }
+            ]
+        },
+    )
+    stamp = time.time() - age_days * 24 * 3600
+    os.utime(cache._path(key), (stamp, stamp))
+
+
+def test_expired_title_caches_refresh_only_the_oldest_few(monkeypatch, tmp_path):
+    me = FakeLibraryMe(5)
+    monkeypatch.setattr(psn_service, "_client", lambda _npsso: me)
+    monkeypatch.setattr(psn_service, "_ROLLING_REFRESH_PER_BUILD", 2)
+    cache = FileCache(tmp_path)
+    for index, title in enumerate(me.titles):
+        _seed_title_cache(cache, title, age_days=40 + index)  # Game 4 is oldest
+
+    profile = psn_service.build_profile_from_psn("token", cache=cache)
+
+    assert profile is not None
+    assert sorted(me.fetched) == ["NPWR00003_00", "NPWR00004_00"]
+    titles_by_game = {trophy.game: trophy.title for trophy in profile.trophy_log}
+    assert titles_by_game == {
+        "Game 0": "Old",
+        "Game 1": "Old",
+        "Game 2": "Old",
+        "Game 3": "Fresh",
+        "Game 4": "Fresh",
+    }
+
+
+def test_rolling_refresh_rotates_through_the_library(monkeypatch, tmp_path):
+    me = FakeLibraryMe(4)
+    monkeypatch.setattr(psn_service, "_client", lambda _npsso: me)
+    monkeypatch.setattr(psn_service, "_ROLLING_REFRESH_PER_BUILD", 2)
+    cache = FileCache(tmp_path)
+    for index, title in enumerate(me.titles):
+        _seed_title_cache(cache, title, age_days=40 + index)
+
+    psn_service.build_profile_from_psn("token", cache=cache)
+    psn_service.build_profile_from_psn("token", cache=cache)
+    psn_service.build_profile_from_psn("token", cache=cache)
+
+    assert sorted(me.fetched) == [title.np_communication_id for title in me.titles]
+
+
+def test_uncached_titles_are_always_fetched(monkeypatch, tmp_path):
+    me = FakeLibraryMe(3)
+    monkeypatch.setattr(psn_service, "_client", lambda _npsso: me)
+    monkeypatch.setattr(psn_service, "_ROLLING_REFRESH_PER_BUILD", 1)
+
+    profile = psn_service.build_profile_from_psn("token", cache=FileCache(tmp_path))
+
+    assert profile is not None
+    assert len(me.fetched) == 3
+
+
+def test_failed_rolling_refresh_keeps_the_cached_trophies(monkeypatch, tmp_path):
+    me = FakeLibraryMe(1, fail=True)
+    monkeypatch.setattr(psn_service, "_client", lambda _npsso: me)
+    cache = FileCache(tmp_path)
+    _seed_title_cache(cache, me.titles[0], age_days=60)
+
+    profile = psn_service.build_profile_from_psn("token", cache=cache)
+
+    assert profile is not None
+    assert [trophy.title for trophy in profile.trophy_log] == ["Old"]
