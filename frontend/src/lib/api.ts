@@ -55,6 +55,8 @@ export interface ProfileData {
   summary_only?: boolean
   profile_source?: 'psn' | 'psnprofiles' | null
   cache_status?: 'live' | 'cached' | null
+  /** Expired cache served while the backend rebuilds it; poll until false. */
+  refreshing?: boolean
   fetched_at?: string | null
   /** Game title -> real playtime in seconds (PSN API source only). */
   game_playtime_seconds?: Record<string, number>

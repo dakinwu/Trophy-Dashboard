@@ -93,9 +93,14 @@ export function useCachedAdvisorSignals(
   })
 }
 
+/** How often to re-check while the backend rebuilds an expired profile. */
+const PROFILE_REFRESH_POLL_MS = 15 * 1000
+
 /**
  * Fetches a PSN profile + trophy log for `username` (served from the backend's
- * cache when fresh). Disabled until a username is present.
+ * cache when fresh). An expired cache comes back at once with
+ * `refreshing: true` while the backend rebuilds it; we poll until the fresh
+ * profile replaces it. Disabled until a username is present.
  */
 export function useProfile(username: string | undefined) {
   return useQuery<ProfileData, ApiError>({
@@ -104,6 +109,8 @@ export function useProfile(username: string | undefined) {
     enabled: Boolean(username),
     retry: false,
     staleTime: 5 * 60 * 1000,
+    refetchInterval: (query) =>
+      query.state.data?.refreshing ? PROFILE_REFRESH_POLL_MS : false,
   })
 }
 

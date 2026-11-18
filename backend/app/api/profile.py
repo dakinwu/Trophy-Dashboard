@@ -26,7 +26,7 @@ def read_platinum_gallery(username: str, refresh: bool = Query(False)):
 @router.get("/profile/{username}")
 def read_profile(username: str, refresh: bool = Query(False)):
     try:
-        data = get_profile(username, force=refresh)
+        data = get_profile(username, force=refresh, background_refresh=True)
     except (requests.exceptions.RequestException, PSNProfilesFetchError):
         raise HTTPException(status_code=502, detail="Error fetching profile from PSNProfiles.")
     if data is None:

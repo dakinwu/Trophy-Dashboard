@@ -70,6 +70,9 @@ class ProfileData(BaseModel):
     summary_only: bool = False
     profile_source: Literal["psn", "psnprofiles"] | None = None
     cache_status: Literal["live", "cached"] | None = None
+    # True while an expired cached profile is being served and a background
+    # refresh is running; clients poll until it turns False.
+    refreshing: bool = False
     fetched_at: str | None = None
     # Game title -> real playtime in seconds (PSN API source only; empty otherwise).
     game_playtime_seconds: dict[str, int] = Field(default_factory=dict)
