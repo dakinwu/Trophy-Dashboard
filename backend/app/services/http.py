@@ -100,7 +100,10 @@ def _trophy_page_is_complete(
 
 def _page_is_ready(html: str, requested_url: str | None = None) -> bool:
     """True once Cloudflare has yielded requested content or a terminal error."""
-    soup = BeautifulSoup(html, "html.parser")
+    return _soup_is_ready(BeautifulSoup(html, "html.parser"), requested_url)
+
+
+def _soup_is_ready(soup: BeautifulSoup, requested_url: str | None = None) -> bool:
     title = soup.title.get_text(" ", strip=True).lower() if soup.title else ""
     if "just a moment" in title:
         return False
@@ -243,7 +246,7 @@ class NodriverSession:
                 await tab.sleep(1)
                 continue
             challenge_since = None
-            page_ready = _page_is_ready(last_html, url)
+            page_ready = _soup_is_ready(soup, url)
             if page_ready:
                 # Compare meaningful page data rather than ads/animation markup.
                 signature = (title_text, tuple(table.get_text(" ", strip=True)
@@ -257,15 +260,9 @@ class NodriverSession:
             # Trophy lists can lazy-render additional rows as the page scrolls.
             # Keep advancing by one viewport until the declared count and URL
             # positions are complete, then the next poll returns the full DOM.
-            partial_soup = BeautifulSoup(last_html, "html.parser")
-            partial_title = (
-                partial_soup.title.get_text(" ", strip=True).lower()
-                if partial_soup.title
-                else ""
-            )
             if (
-                "trophies" in partial_title
-                and partial_soup.select_one("table.zebra")
+                "trophies" in title_text
+                and soup.select_one("table.zebra")
                 and not page_ready
             ):
                 await tab.scroll_down(100)

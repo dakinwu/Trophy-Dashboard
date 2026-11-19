@@ -74,7 +74,7 @@ def _roman_value(token: str) -> int | None:
         else:
             total += value
             previous = value
-    return total or None
+    return total
 
 
 def _to_roman(number: int) -> str:
@@ -101,7 +101,7 @@ def numeral_search_variants(title: str) -> list[str]:
 
     def roman_to_arabic(match: re.Match) -> str:
         token = match.group(0)
-        value = None if token.isdigit() or token.casefold() == "i" else _roman_value(token)
+        value = None if token.casefold() == "i" else _roman_value(token)
         return str(value) if value else token
 
     variants: list[str] = []
@@ -140,25 +140,16 @@ def fallback_search_titles(titles: list[str]) -> list[str]:
     "Definitive Edition" or "Remastered" (and their numeral variants).
     """
     ordered: list[str] = []
-
-    def add(title: str) -> None:
-        title = title.strip()
-        if title and title.casefold() not in {item.casefold() for item in ordered}:
-            ordered.append(title)
-
-    for title in titles:
-        add(title)
-    for title in titles:
-        for variant in numeral_search_variants(title):
-            add(variant)
+    seen: set[str] = set()
     shortened = [
         short for title in titles if (short := _strip_edition_suffix(title)) != title
     ]
-    for title in shortened:
-        add(title)
-    for title in shortened:
-        for variant in numeral_search_variants(title):
-            add(variant)
+    for group in (titles, shortened):
+        candidates = [*group, *(v for t in group for v in numeral_search_variants(t))]
+        for title in (candidate.strip() for candidate in candidates):
+            if title and title.casefold() not in seen:
+                seen.add(title.casefold())
+                ordered.append(title)
     return ordered
 
 

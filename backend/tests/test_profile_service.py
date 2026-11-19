@@ -393,7 +393,9 @@ def test_finished_background_refresh_serves_fresh_profile(
 
     monkeypatch.setattr(profile_service, "_fetch_live_profile", fetch_live)
     profile_service.get_profile("TestUser", background_refresh=True, cache=cache)
+    assert profile_service.is_background_refreshing("testuser") is True
     background_jobs.pop()()
+    assert profile_service.is_background_refreshing("TestUser") is False
 
     data = profile_service.get_profile("TestUser", background_refresh=True, cache=cache)
 

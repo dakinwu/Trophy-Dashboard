@@ -452,21 +452,19 @@ def _earned_trophies_for_title(
     cache,
     *,
     online_id: str | None = None,
-    refresh_expired: bool = True,
+    refetch: bool,
 ) -> list[dict] | None:
     """Earned-trophy dicts for one title, cached per (title, last_updated).
 
-    An expired entry is re-fetched only when `refresh_expired` is set, and is
-    still returned if that re-fetch fails. Returns None if the title's
-    trophies couldn't be fetched at all."""
+    A cached entry is used as-is unless `refetch` is set (the rolling refresh
+    picked it); it is still returned if that re-fetch fails. Returns None if
+    the title's trophies couldn't be fetched at all."""
     key = _title_cache_key(title, online_id) if cache is not None else None
     stale: list[dict] | None = None
     if key is not None:
         cached = cache.load(key, float("inf"))
         if cached is not None:
-            modified_at = cache.modified_at(key)
-            expired = modified_at is None or time.time() - modified_at > _TITLE_TROPHY_TTL
-            if not (expired and refresh_expired):
+            if not refetch:
                 return cached.get("trophies", [])
             stale = cached.get("trophies", [])
 
@@ -683,10 +681,7 @@ def build_profile_from_psn(
             title,
             cache,
             online_id=cache_owner,
-            refresh_expired=(
-                cache is not None
-                and _title_cache_key(title, cache_owner) in refresh_keys
-            ),
+            refetch=_title_cache_key(title, cache_owner) in refresh_keys,
         )
         if earned is None:
             errors += 1

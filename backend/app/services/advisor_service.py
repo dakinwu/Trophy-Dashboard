@@ -604,6 +604,17 @@ def get_advisor_library(
     return data
 
 
+def _browser_failure(exc: PSNProfilesFetchError) -> tuple[str, bool]:
+    """User-facing message for a browser failure, and whether it stops the batch.
+
+    Only a Cloudflare challenge is terminal; any other failed page affects just
+    the game (or bundle) being read.
+    """
+    if isinstance(exc, PSNProfilesChallengeError):
+        return "PSNProfiles 需要手動完成網站驗證；請在瀏覽器完成後再重試。", True
+    return "PSNProfiles 網頁讀取失敗；請稍後重試，目前保留既有資料。", False
+
+
 def get_advisor_signals_batch(
     candidates: list[AdvisorCandidate],
     *,
@@ -727,15 +738,9 @@ def get_advisor_signals_batch(
                     )
                     # Like single games, only a Cloudflare challenge stops the
                     # batch; one slow or failed page fails just this bundle.
-                    if isinstance(exc, PSNProfilesChallengeError):
-                        terminal_error = (
-                            "PSNProfiles 需要手動完成網站驗證；請在瀏覽器完成後再重試。"
-                        )
-                        bundle_error = terminal_error
-                    else:
-                        bundle_error = (
-                            "PSNProfiles 網頁讀取失敗；請稍後重試，目前保留既有資料。"
-                        )
+                    bundle_error, is_terminal = _browser_failure(exc)
+                    if is_terminal:
+                        terminal_error = bundle_error
                 except Exception as exc:
                     logger.exception(
                         "Advisor bundle analysis unexpected failure title=%r: %s",
@@ -842,10 +847,9 @@ def get_advisor_signals_batch(
                     candidate.platform or "UNKNOWN",
                     exc,
                 )
-                message = "PSNProfiles 網頁讀取失敗；請稍後重試，目前保留既有資料。"
-                if isinstance(exc, PSNProfilesChallengeError):
-                    terminal_error = "PSNProfiles 需要手動完成網站驗證；請在瀏覽器完成後再重試。"
-                    message = terminal_error
+                message, is_terminal = _browser_failure(exc)
+                if is_terminal:
+                    terminal_error = message
                 results.append(
                     AdvisorSignalResult(
                         game=candidate.game,

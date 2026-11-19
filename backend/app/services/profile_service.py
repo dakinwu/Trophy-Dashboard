@@ -392,6 +392,12 @@ def _reset_background_refresh_state() -> None:
         _REFRESH_FAILED_AT.clear()
 
 
+def is_background_refreshing(username: str) -> bool:
+    """True while a background rebuild of `username`'s profile is running."""
+    with _REFRESH_LOCK:
+        return username.casefold() in _REFRESHING
+
+
 def _fetch_live_profile(username: str, cache: FileCache) -> ProfileData | None:
     return get_profile(username, force=True, cache=cache)
 

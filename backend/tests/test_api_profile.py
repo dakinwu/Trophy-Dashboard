@@ -87,3 +87,14 @@ def test_get_profile_serves_stale_data_while_refreshing(monkeypatch):
     assert resp.status_code == 200
     assert resp.json()["refreshing"] is True
     assert calls == [{"force": False, "background_refresh": True}]
+
+
+def test_refresh_status_reports_background_refresh(monkeypatch):
+    # Polling this tiny endpoint avoids re-downloading the whole profile while
+    # an expired cache is rebuilt in the background.
+    monkeypatch.setattr(
+        profile_api, "is_background_refreshing", lambda username: username == "busy"
+    )
+
+    assert client.get("/api/profile/busy/refresh-status").json() == {"refreshing": True}
+    assert client.get("/api/profile/idle/refresh-status").json() == {"refreshing": False}

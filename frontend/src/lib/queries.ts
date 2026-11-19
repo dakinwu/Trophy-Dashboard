@@ -7,6 +7,7 @@ import {
   getGameDetail,
   getHltb,
   getProfile,
+  getProfileRefreshStatus,
   getPlatinumGallery,
   getPsnprofilesGuide,
   getPsnprofilesStats,
@@ -99,19 +100,38 @@ const PROFILE_REFRESH_POLL_MS = 15 * 1000
 /**
  * Fetches a PSN profile + trophy log for `username` (served from the backend's
  * cache when fresh). An expired cache comes back at once with
- * `refreshing: true` while the backend rebuilds it; we poll until the fresh
- * profile replaces it. Disabled until a username is present.
+ * `refreshing: true` while the backend rebuilds it; we then poll the tiny
+ * refresh-status endpoint (not the multi-MB profile) and refetch the profile
+ * once the rebuild has finished. Disabled until a username is present.
  */
 export function useProfile(username: string | undefined) {
-  return useQuery<ProfileData, ApiError>({
+  const queryClient = useQueryClient()
+  const profile = useQuery<ProfileData, ApiError>({
     queryKey: ['profile', username],
     queryFn: () => getProfile(username as string),
     enabled: Boolean(username),
     retry: false,
     staleTime: 5 * 60 * 1000,
-    refetchInterval: (query) =>
-      query.state.data?.refreshing ? PROFILE_REFRESH_POLL_MS : false,
   })
+  const refreshing = Boolean(profile.data?.refreshing)
+  const status = useQuery({
+    queryKey: ['profile-refresh-status', username],
+    queryFn: () => getProfileRefreshStatus(username as string),
+    enabled: Boolean(username) && refreshing,
+    retry: false,
+    refetchInterval: PROFILE_REFRESH_POLL_MS,
+  })
+  // Only a status read newer than the stale profile counts as "finished".
+  const finished =
+    refreshing &&
+    status.data?.refreshing === false &&
+    status.dataUpdatedAt > profile.dataUpdatedAt
+  useEffect(() => {
+    if (finished) {
+      void queryClient.invalidateQueries({ queryKey: ['profile', username] })
+    }
+  }, [finished, queryClient, username])
+  return profile
 }
 
 export function useGameDetail(

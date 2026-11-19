@@ -179,6 +179,13 @@ export interface HltbTimes {
 }
 
 /** HowLongToBeat completion times for a game; null if not found. */
+/** Whether the backend is still rebuilding an expired profile. */
+export function getProfileRefreshStatus(username: string): Promise<{ refreshing: boolean }> {
+  return requestJson<{ refreshing: boolean }>(
+    `/api/profile/${encodeURIComponent(username)}/refresh-status`,
+  )
+}
+
 export async function getHltb(game: string): Promise<HltbTimes | null> {
   const res = await fetch(`/api/hltb?game=${encodeURIComponent(game)}`)
   if (!res.ok) return null
