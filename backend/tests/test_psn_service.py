@@ -432,3 +432,20 @@ def test_failed_rolling_refresh_keeps_the_cached_trophies(monkeypatch, tmp_path)
 
     assert profile is not None
     assert [trophy.title for trophy in profile.trophy_log] == ["Old"]
+
+
+def test_game_name_score_separates_numbered_sequels_from_other_titles():
+    from app.services.psn_service import _game_name_score
+
+    assert _game_name_score("SILENT HILL 2", "SILENT HILL f") == 0.0
+    assert _game_name_score("Tom Clancy's The Division 2", "Tom Clancy's The Division") == 0.0
+    assert _game_name_score("Final Fantasy XVI", "Final Fantasy 16") >= 0.92
+    assert _game_name_score("Persona 5", "Persona 5 Royal") >= 0.82
+    assert _game_name_score("I Am Setsuna", "I am Setsuna™") == 1.0
+    assert _game_name_score(
+        "Call of Duty Modern Warfare 3", "Call of Duty Modern Warfare Remastered"
+    ) == 0.0
+    # A first entry often omits its "1": the PS4 "The Walking Dead: Season 1"
+    # trophy list is just "The Walking Dead". Different numbers still differ.
+    assert _game_name_score("The Walking Dead: Season 1", "The Walking Dead") >= 0.82
+    assert _game_name_score("The Walking Dead: Season 1", "The Walking Dead: Season 2") == 0.0

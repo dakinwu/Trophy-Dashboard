@@ -63,11 +63,42 @@ const BATCH_SIZE_OPTIONS: { id: BatchSize; label: string }[] = [
   { id: '50', label: '50 款（上限）' },
 ]
 
+/** Seconds since `active` became true, ticking once a second; 0 while inactive. */
+function useElapsedSeconds(active: boolean): number {
+  const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!active) {
+      setStartedAt(null)
+      return
+    }
+    const start = Date.now()
+    setStartedAt(start)
+    setNow(start)
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [active])
+  return startedAt === null ? 0 : Math.max(0, Math.floor((now - startedAt) / 1000))
+}
+
+/** What a live library read is doing, so a ~40 s wait never looks frozen. */
+function LibraryFetchStatus({ username, active }: { username: string; active: boolean }) {
+  const seconds = useElapsedSeconds(active)
+  if (!active) return null
+  return (
+    <p role="status" aria-live="polite" className="flex items-center gap-2 text-xs text-accent">
+      <span className="size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+      正在向 PlayStation 讀取 {username} 的收藏庫、遊玩時間與獎盃進度… 已 {seconds} 秒（通常約 40 秒）
+    </p>
+  )
+}
+
 function AdvisorLoading({ username }: { username: string }) {
   return (
-    <div className="flex flex-col gap-6" aria-busy="true" aria-live="polite">
+    <div className="flex flex-col gap-6" aria-busy="true">
       <section className="rounded-3xl border border-border bg-surface p-6">
-        <Skeleton className="h-4 w-36 rounded-full" />
+        <LibraryFetchStatus username={username} active />
+        <Skeleton className="mt-4 h-4 w-36 rounded-full" />
         <Skeleton className="mt-4 h-9 w-72 max-w-full rounded-lg" />
         <Skeleton className="mt-3 h-4 w-full max-w-2xl rounded-full" />
         <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -77,7 +108,6 @@ function AdvisorLoading({ username }: { username: string }) {
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2, 3, 4, 5].map((item) => <Skeleton key={item} className="h-96 rounded-2xl" />)}
       </div>
-      <p className="sr-only">正在載入 {username} 的私人 PlayStation 收藏庫。</p>
     </div>
   )
 }
@@ -375,6 +405,9 @@ export function AdvisorPage() {
             {library.excluded_platinum_count > 0 && ` 已自動排除 ${library.excluded_platinum_count.toLocaleString()} 款你已取得白金獎盃的遊戲。`}
             {library.merged_platform_count > 0 && ` 已將 ${library.merged_platform_count.toLocaleString()} 個重複的跨平台版本合併到同一款遊戲。`}
           </p>
+          <div className="mt-2">
+            <LibraryFetchStatus username={library.username} active={refreshing} />
+          </div>
           {refreshError && <p role="status" className="mt-2 text-xs text-red-300">重新整理失敗，目前仍保留原有資料。</p>}
         </div>
       </section>

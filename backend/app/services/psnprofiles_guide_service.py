@@ -61,7 +61,7 @@ _NUMERAL_WORD = re.compile(r"(?<![\w'])(?:\d{1,2}|[IVXivx]{1,6})(?![\w'])")
 _MAX_ROMAN_SEQUEL = 20
 
 
-def _roman_value(token: str) -> int | None:
+def roman_numeral_value(token: str) -> int | None:
     """Value of a Roman-numeral word (``xvi`` -> 16), else None."""
     token = token.casefold()
     if not token or not _ROMAN_TOKEN.fullmatch(token):
@@ -101,7 +101,7 @@ def numeral_search_variants(title: str) -> list[str]:
 
     def roman_to_arabic(match: re.Match) -> str:
         token = match.group(0)
-        value = None if token.casefold() == "i" else _roman_value(token)
+        value = None if token.casefold() == "i" else roman_numeral_value(token)
         return str(value) if value else token
 
     variants: list[str] = []
@@ -179,7 +179,7 @@ def _normalise_title(title: str) -> str:
     # Compare sequel numbers by value: "xvi" and "16" are the same token. A lone
     # "i" stays a word (usually the pronoun, as in "I Am Setsuna").
     return " ".join(
-        str(value) if token != "i" and (value := _roman_value(token)) else token
+        str(value) if token != "i" and (value := roman_numeral_value(token)) else token
         for token in tokens
     )
 
