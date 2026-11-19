@@ -23,7 +23,8 @@ source repository does not make this a safe public web service. Read
   endpoints.
 - **`frontend/`** — Vite + React + TypeScript + Tailwind CSS v4 + HeroUI v3
   ("Trophy Gold" dark theme), with Recharts for data visualization. Pages:
-  Overview, Games, Trophy Advisor, Timeline, Milestones, Data.
+  Overview, Games, Trophy Advisor (獎盃建議 in the interface), Timeline,
+  Milestones, Data.
 
 ## Setup (first time)
 
@@ -96,7 +97,10 @@ source repository does not make this a safe public web service. Read
 ## Notes
 
 - The first load of a large library is slow (the PSN API is per-game and rate-limited);
-  it's cached for 24 hours afterwards.
+  it's cached for 24 hours afterwards. Once that cache expires, the page shows the
+  previous data immediately, labelled `舊快取 · 背景更新中`, while one background
+  rebuild per player runs; the page swaps in the new data when it finishes. A
+  failed rebuild is retried no sooner than 10 minutes later.
 - Trophy Advisor reads the configured NPSSO owner's active digital PS3/PS4/PS5
   entitlements, including games that have never been launched. Active claimed
   PS Plus entitlements may appear; this is **not the entire PS Plus catalogue**.
@@ -113,9 +117,10 @@ source repository does not make this a safe public web service. Read
   PSNProfiles signals instead of assigning a misleading aggregate score.
 - The dashboard interface uses Traditional Chinese; game titles, trophy titles,
   and source-provided game/trophy text remain in their original language.
-- A PSNProfiles cache miss may open Chrome. Cloudflare challenges can require
-  manual verification; automated retries stop on a detected challenge rather
-  than promising to bypass it. The first page can take a few minutes; the same
+- A PSNProfiles cache miss may open Chrome. The browser usually clears
+  Cloudflare's check by itself within a few seconds; only a check page that is
+  still showing after 20 seconds is reported as needing manual verification, and
+  automated retries then stop rather than promising to bypass it. The first page can take a few minutes; the same
   browser session and cookies are reused for trophy-log pages.
 - PSNProfiles guide difficulty and platinum-time data is loaded on demand from a
   game card. A cache miss opens the same visible Chrome flow; successful guide
@@ -147,11 +152,18 @@ source repository does not make this a safe public web service. Read
   game's current transfer behavior.
 - Opening Advisor restores cached analysis; it does not re-analyze the entire
   library automatically. Individual failures are reported without discarding
-  other games in the batch. A detected Cloudflare challenge stops automatic retries.
+  other games in the batch: a timed-out or failed page affects only that game or
+  collection. Only a Cloudflare challenge that needs manual verification stops
+  the rest of the batch.
 - Additional second-round Gemini title recovery is **off by default**. Backend
   requests must explicitly set `retry_title_lookup: true`; `allow_title_api: false`
   prevents title and collection API lookups for that batch.
-- Trophy-list matching checks title, sequel information and platform. Previously
+- Trophy-list matching checks title, sequel information and platform. Sequel
+  numbers match in either notation (`16` and `XVI`). When several regional lists
+  match equally (for example `• JP`, `• EU`), the one with the most owners is
+  used. A search with no safe match is retried with sequel numbers in the other
+  notation, then without edition suffixes such as `Definitive Edition` or
+  `Remastered` (`Mafia 2 Definitive Edition` → `Mafia II`). Previously
   successful, validated results can be retained when an update fails; cards label
   them as last-successful data pending an update and preserve their original
   fetch time. Old data is not silently presented as newly analyzed.
@@ -165,6 +177,7 @@ restarting the services does not clear these files.** Backend cache lifetimes:
 | --- | --- |
 | Profile, Advisor library, platinum gallery | 24 hours |
 | Individual game's trophy details | 6 hours |
+| Per-game earned trophies from PSN (used to build the profile) | 30 days; each rebuild re-fetches at most the 10 oldest expired games |
 | PSNProfiles trophy lists and analysis statistics | 30 days; validated last-successful data may be retained as stale |
 | PSNProfiles guide difficulty / platinum time | 90 days, on demand |
 | PSNProfiles world / country rank | 6 hours, on demand |
@@ -173,7 +186,10 @@ restarting the services does not clear these files.** Backend cache lifetimes:
 
 These are backend lifetimes; frontend queries have their own caching and loading
 triggers. Expiry permits a future lookup to update data, not a background schedule
-that automatically crawls everything. Refreshing a profile does not clear all
+that automatically crawls everything. The one exception is an expired profile,
+which is rebuilt in the background when it is opened (see Notes); per-game
+trophy caches are refreshed a few at a time during those rebuilds rather than
+all expiring at once. Refreshing a profile does not clear all
 Advisor analysis caches. For example, reloading immediately after a successful
 analysis should reuse that result rather than spend Gemini quota again.
 
@@ -197,6 +213,10 @@ use game covers instead of individual trophy artwork or earned dates.
 - **Analysis failure:** a resolved English title can still fail platform matching
   or external-site access; check the individual error and logs rather than assuming
   every failure is a Gemini failure.
+- **Short, common titles not found:** PSNProfiles search is a full-text match that
+  does not rank by relevance. A title like `Journey` is buried under hundreds of
+  lists whose names contain the same word, so the real list may not appear in the
+  results at all and the game stays unanalysed.
 - **Missing image:** an uncached original still requires accessible official data.
   Do not delete the entire cache just to retry a single image.
 
