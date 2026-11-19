@@ -7,7 +7,12 @@ from fastapi import APIRouter, HTTPException, Query
 from sse_starlette.sse import EventSourceResponse
 
 from app.services.http import PSNProfilesFetchError
-from app.services.profile_service import get_game_detail, get_platinum_gallery, get_profile
+from app.services.profile_service import (
+    get_game_detail,
+    get_platinum_gallery,
+    get_profile,
+    is_background_refreshing,
+)
 
 router = APIRouter()
 
@@ -26,12 +31,18 @@ def read_platinum_gallery(username: str, refresh: bool = Query(False)):
 @router.get("/profile/{username}")
 def read_profile(username: str, refresh: bool = Query(False)):
     try:
-        data = get_profile(username, force=refresh)
+        data = get_profile(username, force=refresh, background_refresh=True)
     except (requests.exceptions.RequestException, PSNProfilesFetchError):
         raise HTTPException(status_code=502, detail="Error fetching profile from PSNProfiles.")
     if data is None:
         raise HTTPException(status_code=404, detail=f"Profile '{username}' not found or is private.")
     return data.model_dump()
+
+
+@router.get("/profile/{username}/refresh-status")
+def read_refresh_status(username: str):
+    """Cheap poll target while an expired profile is rebuilt in the background."""
+    return {"refreshing": is_background_refreshing(username)}
 
 
 @router.get("/profile/{username}/game")

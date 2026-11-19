@@ -37,6 +37,8 @@ export interface OverviewHeroViewModel {
   source: 'psn' | 'psnprofiles' | 'unknown'
   sourceLabel: string
   cacheStatus: 'live' | 'cached' | 'unknown'
+  /** Showing an expired cache while the backend rebuilds the profile. */
+  backgroundRefreshing: boolean
   fetchedAt: Date | null
   metrics: HeroMetric[]
   trophyMix: TrophyMixItem[]
@@ -188,6 +190,7 @@ export function buildOverviewHeroViewModel(data: ProfileData): OverviewHeroViewM
     sourceLabel:
       source === 'psn' ? 'PSN 官方' : source === 'psnprofiles' ? 'PSNProfiles' : '來源無法取得',
     cacheStatus: data.cache_status ?? 'unknown',
+    backgroundRefreshing: Boolean(data.refreshing),
     fetchedAt: fetchedAt && !Number.isNaN(fetchedAt.getTime()) ? fetchedAt : null,
     metrics: metricList(data, gamesPlayed, rarityBuckets, raritySourceLabel),
     trophyMix,

@@ -18,6 +18,7 @@ from app.services.psnprofiles_guide_service import (
     _candidate_is_safe_match,
     _candidate_score,
     _legacy_psnprofiles_search_query,
+    fallback_search_titles,
     psnprofiles_search_query,
 )
 
@@ -27,6 +28,7 @@ PSNPROFILES_GAME_SEARCH_URL = f"{PSNPROFILES_BASE_URL}/search/games"
 _TROPHY_LIST_TTL = 30 * 24 * 3600
 _GAME_PATH = re.compile(r"^/trophies/\d+(?:-[^/?#]+)?/?$")
 _TROPHY_PATH = re.compile(r"^/trophy/\d+(?:-[^/?#]+)?/\d+(?:-[^/?#]+)?/?$")
+_OWNERS = re.compile(r"([\d,]+)\s*OWNERS?\b", re.IGNORECASE)
 _PERCENT = re.compile(r"\b\d+(?:\.\d+)?%")
 _RARITY_LABEL = re.compile(
     r"\b(Ultra Rare|Very Rare|Rare|Uncommon|Common)\b",
@@ -67,6 +69,7 @@ def parse_game_search(
     """Select the best title/platform match from PSNProfiles game search."""
     soup = BeautifulSoup(html, "html.parser")
     candidates: dict[str, tuple[str, set[str]]] = {}
+    owners_by_url: dict[str, int] = {}
 
     for anchor in soup.select("a[href]"):
         absolute_url = urljoin(PSNPROFILES_BASE_URL, anchor.get("href", ""))
@@ -90,10 +93,11 @@ def parse_game_search(
         if not title:
             continue
         container_text = container.get_text(" ", strip=True) if container else title
-        candidates.setdefault(
-            absolute_url.rstrip("/"),
-            (title, _platform_tokens(container_text)),
-        )
+        url_key = absolute_url.rstrip("/")
+        candidates.setdefault(url_key, (title, _platform_tokens(container_text)))
+        owners_match = _OWNERS.search(container_text)
+        if owners_match:
+            owners_by_url.setdefault(url_key, int(owners_match.group(1).replace(",", "")))
 
     if not candidates:
         page_title = soup.title.get_text(" ", strip=True) if soup.title else "unknown"
@@ -130,7 +134,12 @@ def parse_game_search(
         logger.warning("PSNProfiles no eligible candidates query=%r platform=%s examined=%d",
                        game, wanted_platform or "UNKNOWN", len(candidates))
         return None
-    game_url, (title, platforms) = max(eligible, key=score)
+    # Equal title/platform matches are usually regional copies of one list
+    # (e.g. "BioShock 2 • JP" with 204 owners); prefer the most-owned one.
+    game_url, (title, platforms) = max(
+        eligible,
+        key=lambda candidate: (score(candidate), owners_by_url.get(candidate[0], -1)),
+    )
     return {
         "title": title,
         "game_url": game_url,
@@ -283,13 +292,13 @@ def get_psnprofiles_trophies(
     # Advisor/detail lookups are bounded; a single dead page must not consume
     # the full profile-scrape timeout twice before the next game is processed.
     read_timeout = min(settings.psnprofiles_browser_timeout, 45.0)
-    search_titles: list[str] = []
-    for title in [game, *(search_aliases or [])]:
-        query = psnprofiles_search_query(title)
-        if query and query.casefold() not in {
-            existing.casefold() for existing in search_titles
-        }:
-            search_titles.append(query)
+    # Searches run in order and stop at the first safe match, so numeral
+    # variants (16 <-> XVI) and titles without edition suffixes are only tried
+    # after every given title failed. The helper also drops empty/duplicate
+    # queries case-insensitively.
+    search_titles = fallback_search_titles(
+        [psnprofiles_search_query(title) for title in [game, *(search_aliases or [])]]
+    )
     if not search_titles:
         return None
 

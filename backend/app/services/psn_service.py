@@ -14,6 +14,7 @@ import hashlib
 import json
 import logging
 import re
+import time
 import unicodedata
 from difflib import SequenceMatcher
 from datetime import datetime, timezone
@@ -412,7 +413,12 @@ def _fetch_title_trophies(me, title):
 # A title's earned trophies only change when you play it, so cache them keyed by
 # (np_communication_id, last_updated). On rebuild, an untouched game is a cache
 # hit and costs zero API calls — only recently-played titles are re-fetched.
+# Only the PSN rarity percentages drift, so an entry older than the TTL is not
+# discarded: each profile build re-fetches just the few oldest expired titles
+# (a rolling refresh). That keeps rarities current without every title fetched
+# on the same day expiring — and re-fetching at ~3 s per request — together.
 _TITLE_TROPHY_TTL = 30 * 24 * 3600
+_ROLLING_REFRESH_PER_BUILD = 10
 
 
 def _title_cache_key(title, online_id: str | None = None) -> str:
@@ -425,24 +431,46 @@ def _title_cache_key(title, online_id: str | None = None) -> str:
     return f"psn_title_v2/{digest}"
 
 
+def _rolling_refresh_keys(titles, cache, online_id: str | None = None) -> set[str]:
+    """Cache keys of the oldest expired titles to re-fetch during this build."""
+    if cache is None:
+        return set()
+    now = time.time()
+    expired: list[tuple[float, str]] = []
+    for title in titles:
+        key = _title_cache_key(title, online_id)
+        modified_at = cache.modified_at(key)
+        if modified_at is not None and now - modified_at > _TITLE_TROPHY_TTL:
+            expired.append((modified_at, key))
+    expired.sort()
+    return {key for _, key in expired[:_ROLLING_REFRESH_PER_BUILD]}
+
+
 def _earned_trophies_for_title(
     me,
     title,
     cache,
     *,
     online_id: str | None = None,
+    refetch: bool,
 ) -> list[dict] | None:
     """Earned-trophy dicts for one title, cached per (title, last_updated).
-    Returns None if the title's trophies couldn't be fetched at all."""
+
+    A cached entry is used as-is unless `refetch` is set (the rolling refresh
+    picked it); it is still returned if that re-fetch fails. Returns None if
+    the title's trophies couldn't be fetched at all."""
     key = _title_cache_key(title, online_id) if cache is not None else None
+    stale: list[dict] | None = None
     if key is not None:
-        cached = cache.load(key, _TITLE_TROPHY_TTL)
+        cached = cache.load(key, float("inf"))
         if cached is not None:
-            return cached.get("trophies", [])
+            if not refetch:
+                return cached.get("trophies", [])
+            stale = cached.get("trophies", [])
 
     trophies = _fetch_title_trophies(me, title)
     if trophies is None:
-        return None
+        return stale
 
     earned: list[dict] = []
     for tr in trophies:
@@ -642,6 +670,9 @@ def build_profile_from_psn(
     log: list[Trophy] = []
     errors = 0
 
+    cache_owner = resolved_online_id if is_public_lookup else None
+    refresh_keys = _rolling_refresh_keys(titles, cache, cache_owner)
+
     for idx, title in enumerate(titles):
         if should_stop is not None and should_stop():
             break
@@ -649,7 +680,8 @@ def build_profile_from_psn(
             me,
             title,
             cache,
-            online_id=resolved_online_id if is_public_lookup else None,
+            online_id=cache_owner,
+            refetch=_title_cache_key(title, cache_owner) in refresh_keys,
         )
         if earned is None:
             errors += 1

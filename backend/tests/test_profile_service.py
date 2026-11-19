@@ -1,3 +1,5 @@
+import pytest
+
 from tests.conftest import FakeSession, load_fixture
 from app.core.cache import FileCache
 from app.models import (
@@ -301,3 +303,138 @@ def test_expired_gallery_remains_available_when_sony_is_unreachable(tmp_path, mo
     assert result.complete
     assert result.cache_status == "cached"
     assert result.fetched_at == gallery.fetched_at
+
+
+# --- stale-while-revalidate -------------------------------------------------
+
+
+def _profile(username: str, title: str) -> ProfileData:
+    return ProfileData(
+        profile_summary=ProfileSummary(
+            username=username,
+            total_trophies=TrophyCounts(total=1, gold=1),
+        ),
+        trophy_log=[
+            Trophy(
+                game="Game",
+                platforms=["PS5"],
+                icon_url="icon.png",
+                title=title,
+                timestamp="2026-01-01T00:00:00Z",
+                rarity_percent="5.0%",
+                grade="Gold",
+            )
+        ],
+        profile_source="psn",
+    )
+
+
+def _save_expired(cache: FileCache, key: str, profile: ProfileData) -> None:
+    import os
+    import time
+
+    cache.save(key, profile.model_dump())
+    old = time.time() - profile_service.PROFILE_TTL - 3600
+    os.utime(cache._path(key), (old, old))
+
+
+@pytest.fixture
+def background_jobs(monkeypatch):
+    """Capture background refresh jobs instead of starting threads."""
+    jobs: list = []
+    monkeypatch.setattr(profile_service, "_run_in_background", jobs.append)
+    profile_service._reset_background_refresh_state()
+    yield jobs
+    profile_service._reset_background_refresh_state()
+
+
+def test_expired_profile_is_served_stale_while_refreshing(tmp_path, background_jobs):
+    cache = FileCache(tmp_path)
+    _save_expired(cache, "profile_v3/testuser", _profile("TestUser", "Old"))
+
+    data = profile_service.get_profile(
+        "TestUser",
+        background_refresh=True,
+        session=FakeSession(),  # would fail if the request scraped inline
+        cache=cache,
+    )
+
+    assert data is not None
+    assert data.trophy_log[0].title == "Old"
+    assert data.cache_status == "cached"
+    assert data.refreshing is True
+    assert len(background_jobs) == 1
+
+
+def test_only_one_background_refresh_runs_per_user(tmp_path, background_jobs):
+    cache = FileCache(tmp_path)
+    _save_expired(cache, "profile_v3/testuser", _profile("TestUser", "Old"))
+
+    for _ in range(3):
+        data = profile_service.get_profile(
+            "TestUser", background_refresh=True, cache=cache
+        )
+        assert data is not None and data.refreshing is True
+
+    assert len(background_jobs) == 1
+
+
+def test_finished_background_refresh_serves_fresh_profile(
+    tmp_path, background_jobs, monkeypatch
+):
+    cache = FileCache(tmp_path)
+    key = "profile_v3/testuser"
+    _save_expired(cache, key, _profile("TestUser", "Old"))
+
+    def fetch_live(username, cache):
+        fresh = _profile(username, "New")
+        cache.save(key, fresh.model_dump())
+        return fresh
+
+    monkeypatch.setattr(profile_service, "_fetch_live_profile", fetch_live)
+    profile_service.get_profile("TestUser", background_refresh=True, cache=cache)
+    assert profile_service.is_background_refreshing("testuser") is True
+    background_jobs.pop()()
+    assert profile_service.is_background_refreshing("TestUser") is False
+
+    data = profile_service.get_profile("TestUser", background_refresh=True, cache=cache)
+
+    assert data is not None
+    assert data.trophy_log[0].title == "New"
+    assert data.refreshing is False
+    assert background_jobs == []
+    assert cache.load(key, float("inf"))["refreshing"] is False
+
+
+def test_failed_background_refresh_is_not_retried_immediately(
+    tmp_path, background_jobs, monkeypatch
+):
+    cache = FileCache(tmp_path)
+    _save_expired(cache, "profile_v3/testuser", _profile("TestUser", "Old"))
+
+    def fail(username, cache):
+        raise RuntimeError("PSN unreachable")
+
+    monkeypatch.setattr(profile_service, "_fetch_live_profile", fail)
+    profile_service.get_profile("TestUser", background_refresh=True, cache=cache)
+    background_jobs.pop()()
+
+    data = profile_service.get_profile("TestUser", background_refresh=True, cache=cache)
+
+    assert data is not None
+    assert data.trophy_log[0].title == "Old"
+    assert data.refreshing is False
+    assert background_jobs == []
+
+
+def test_expired_profile_blocks_without_background_refresh(tmp_path, background_jobs, monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+    cache = FileCache(tmp_path)
+    _save_expired(cache, "profile_v3/testuser", _profile("TestUser", "Old"))
+
+    data = profile_service.get_profile("TestUser", session=_session(2), cache=cache)
+
+    assert data is not None
+    assert len(data.trophy_log) == 2
+    assert data.cache_status == "live"
+    assert background_jobs == []

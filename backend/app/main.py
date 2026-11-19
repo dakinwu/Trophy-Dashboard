@@ -20,6 +20,7 @@ def _configure_advisor_logging() -> None:
         "app.services.gemini_title_service",
         "app.services.gemini_bundle_service",
         "app.services.psnprofiles_trophies_service",
+        "app.services.profile_service",
     )
     service_loggers = [logging.getLogger(name) for name in logger_names]
     file_handler = next(

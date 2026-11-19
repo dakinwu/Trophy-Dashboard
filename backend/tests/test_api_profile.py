@@ -25,7 +25,7 @@ def _sample() -> ProfileData:
 
 
 def test_get_profile_200(monkeypatch):
-    monkeypatch.setattr(profile_api, "get_profile", lambda username, force=False: _sample())
+    monkeypatch.setattr(profile_api, "get_profile", lambda username, **_: _sample())
     resp = client.get("/api/profile/TestUser")
     assert resp.status_code == 200
     assert resp.json()["profile_summary"]["username"] == "TestUser"
@@ -33,7 +33,7 @@ def test_get_profile_200(monkeypatch):
 
 
 def test_get_profile_404(monkeypatch):
-    monkeypatch.setattr(profile_api, "get_profile", lambda username, force=False: None)
+    monkeypatch.setattr(profile_api, "get_profile", lambda username, **_: None)
     resp = client.get("/api/profile/Ghost")
     assert resp.status_code == 404
 
@@ -69,3 +69,32 @@ def test_get_game_detail_200(monkeypatch):
     assert resp.status_code == 200
     assert resp.json()["complete"] is True
     assert resp.json()["trophies"][0]["earned"] is False
+
+
+def test_get_profile_serves_stale_data_while_refreshing(monkeypatch):
+    calls: list[dict] = []
+
+    def fake(username, **kwargs):
+        calls.append(kwargs)
+        data = _sample()
+        data.cache_status = "cached"
+        data.refreshing = True
+        return data
+
+    monkeypatch.setattr(profile_api, "get_profile", fake)
+    resp = client.get("/api/profile/TestUser")
+
+    assert resp.status_code == 200
+    assert resp.json()["refreshing"] is True
+    assert calls == [{"force": False, "background_refresh": True}]
+
+
+def test_refresh_status_reports_background_refresh(monkeypatch):
+    # Polling this tiny endpoint avoids re-downloading the whole profile while
+    # an expired cache is rebuilt in the background.
+    monkeypatch.setattr(
+        profile_api, "is_background_refreshing", lambda username: username == "busy"
+    )
+
+    assert client.get("/api/profile/busy/refresh-status").json() == {"refreshing": True}
+    assert client.get("/api/profile/idle/refresh-status").json() == {"refreshing": False}

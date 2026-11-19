@@ -175,3 +175,96 @@ def test_page_is_ready_for_empty_game_search():
     </html>
     """
     assert _page_is_ready(html)
+
+
+def test_browser_reads_page_state_when_chrome_ignores_return_by_value():
+    """Current Chrome ignores returnByValue alongside deep serialization, so
+    nodriver hands back a RemoteObject for object results. Only primitive
+    results (a JSON string) arrive intact."""
+    import json
+    from types import SimpleNamespace
+
+    page = load_fixture("trophy_log_page.html")
+    url = "https://psnprofiles.com/search/games?q=Outer+Wilds"
+
+    class FakeTab:
+        async def evaluate(self, expression, *_args, **_kwargs):
+            state = {"url": url, "readyState": "complete"}
+            if "JSON.stringify" in expression:
+                return json.dumps(state)
+            return SimpleNamespace(value=None, deep_serialized_value=object())
+
+        async def get_content(self):
+            return page
+
+        async def scroll_down(self, _amount):
+            return None
+
+        async def sleep(self, _seconds):
+            return None
+
+    class FakeBrowser:
+        async def get(self, _url):
+            return FakeTab()
+
+    session = NodriverSession()
+    session._browser = FakeBrowser()
+
+    response = asyncio.run(session._get(url, 2))
+
+    assert response.text == page
+
+
+def _challenge_then(page: str, challenge_reads: int, url: str):
+    import json
+
+    challenge = "<html><head><title>Just a moment...</title></head><body></body></html>"
+
+    class FakeTab:
+        def __init__(self):
+            self.reads = 0
+
+        async def evaluate(self, *_args, **_kwargs):
+            return json.dumps({"url": url, "readyState": "complete"})
+
+        async def get_content(self):
+            self.reads += 1
+            return challenge if self.reads <= challenge_reads else page
+
+        async def scroll_down(self, _amount):
+            return None
+
+        async def sleep(self, _seconds):
+            return None
+
+    class FakeBrowser:
+        async def get(self, _url):
+            return FakeTab()
+
+    session = NodriverSession()
+    session._browser = FakeBrowser()
+    return session
+
+
+def test_browser_waits_for_cloudflare_to_clear_by_itself():
+    page = load_fixture("trophy_log_page.html")
+    url = "https://psnprofiles.com/search/games?q=Outer+Wilds"
+    session = _challenge_then(page, challenge_reads=3, url=url)
+
+    response = asyncio.run(session._get(url, 5))
+
+    assert response.text == page
+
+
+def test_browser_reports_a_challenge_that_never_clears(monkeypatch):
+    import pytest
+
+    from app.services import http
+    from app.services.http import PSNProfilesChallengeError
+
+    monkeypatch.setattr(http, "CHALLENGE_GRACE_SECONDS", 0.05)
+    url = "https://psnprofiles.com/search/games?q=Outer+Wilds"
+    session = _challenge_then("", challenge_reads=10**9, url=url)
+
+    with pytest.raises(PSNProfilesChallengeError):
+        asyncio.run(session._get(url, 5))

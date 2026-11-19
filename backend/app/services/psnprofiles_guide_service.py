@@ -50,19 +50,107 @@ _GENERIC_TITLE_TOKENS = {
     "trophy",
     "ultimate",
 }
-_SEQUEL_TOKEN = re.compile(r"^(?:\d+|[ivx]{1,5})$", flags=re.IGNORECASE)
-_ROMAN_SEQUELS = {
-    "i": 1,
-    "ii": 2,
-    "iii": 3,
-    "iv": 4,
-    "v": 5,
-    "vi": 6,
-    "vii": 7,
-    "viii": 8,
-    "ix": 9,
-    "x": 10,
-}
+# Roman numerals I-XXXIX, as used in sequel titles (Final Fantasy XVI).
+_ROMAN_TOKEN = re.compile(r"^x{0,3}(?:ix|iv|v?i{0,3})$")
+_ROMAN_DIGITS = {"i": 1, "v": 5, "x": 10}
+_ROMAN_PARTS = ((10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"))
+# A standalone number or Roman-numeral word inside a search title.
+_NUMERAL_WORD = re.compile(r"(?<![\w'])(?:\d{1,2}|[IVXivx]{1,6})(?![\w'])")
+# Sequel numbers worth retrying as Roman numerals; larger ones are usually
+# years or sports editions (F1 25), which PSNProfiles never writes as Roman.
+_MAX_ROMAN_SEQUEL = 20
+
+
+def _roman_value(token: str) -> int | None:
+    """Value of a Roman-numeral word (``xvi`` -> 16), else None."""
+    token = token.casefold()
+    if not token or not _ROMAN_TOKEN.fullmatch(token):
+        return None
+    total = previous = 0
+    for char in reversed(token):
+        value = _ROMAN_DIGITS[char]
+        if value < previous:
+            total -= value
+        else:
+            total += value
+            previous = value
+    return total
+
+
+def _to_roman(number: int) -> str:
+    parts = []
+    for value, numeral in _ROMAN_PARTS:
+        count, number = divmod(number, value)
+        parts.append(numeral * count)
+    return "".join(parts)
+
+
+def numeral_search_variants(title: str) -> list[str]:
+    """Alternative search titles with sequel numbers in the other notation.
+
+    PSNProfiles search does not equate "Final Fantasy 16" with "Final Fantasy
+    XVI", so a failed search is retried with Arabic numbers written as Roman
+    numerals and vice versa. A lone "I" is left alone (usually the pronoun).
+    """
+
+    def arabic_to_roman(match: re.Match) -> str:
+        token = match.group(0)
+        if token.isdigit() and 2 <= int(token) <= _MAX_ROMAN_SEQUEL:
+            return _to_roman(int(token))
+        return token
+
+    def roman_to_arabic(match: re.Match) -> str:
+        token = match.group(0)
+        value = None if token.casefold() == "i" else _roman_value(token)
+        return str(value) if value else token
+
+    variants: list[str] = []
+    for convert in (arabic_to_roman, roman_to_arabic):
+        variant = _NUMERAL_WORD.sub(convert, title)
+        if variant != title and variant not in variants:
+            variants.append(variant)
+    return variants
+
+
+# Store/marketing edition suffixes PSNProfiles often omits from list names
+# (the PS4 "Mafia II: Definitive Edition" list is just "Mafia II").
+_EDITION_SUFFIX = re.compile(
+    r"\s+(?:(?:definitive|complete|deluxe|digital\s+deluxe|ultimate|special|"
+    r"enhanced|anniversary|legendary|gold|standard|game\s+of\s+the\s+year|goty)"
+    r"\s+edition|remastered|remaster|director'?s\s+cut|goty)$",
+    flags=re.IGNORECASE,
+)
+
+
+def _strip_edition_suffix(title: str) -> str:
+    stripped = title.strip()
+    while (shorter := _EDITION_SUFFIX.sub("", stripped).strip()) != stripped:
+        stripped = shorter
+    has_name = any(
+        token not in _GENERIC_TITLE_TOKENS for token in _normalise_title(stripped).split()
+    )
+    return stripped if has_name else title
+
+
+def fallback_search_titles(titles: list[str]) -> list[str]:
+    """Search titles in the order to try them, stopping at the first match.
+
+    The given titles come first, then the same titles with sequel numbers in
+    the other notation (16 <-> XVI), then without edition suffixes such as
+    "Definitive Edition" or "Remastered" (and their numeral variants).
+    """
+    ordered: list[str] = []
+    seen: set[str] = set()
+    shortened = [
+        short for title in titles if (short := _strip_edition_suffix(title)) != title
+    ]
+    for group in (titles, shortened):
+        candidates = [*group, *(v for t in group for v in numeral_search_variants(t))]
+        for title in (candidate.strip() for candidate in candidates):
+            if title and title.casefold() not in seen:
+                seen.add(title.casefold())
+                ordered.append(title)
+    return ordered
 
 
 def _legacy_psnprofiles_search_query(title: str) -> str:
@@ -87,7 +175,13 @@ def _normalise_title(title: str) -> str:
     title = title.replace("&", " and ")
     title = re.sub(r"\btrophy\s+guide\b", " ", title)
     title = re.sub(r"\b(ps[345]|playstation\s*[345])\b", " ", title)
-    return _SPACE.sub(" ", _NON_WORD.sub(" ", title)).strip()
+    tokens = _SPACE.sub(" ", _NON_WORD.sub(" ", title)).strip().split()
+    # Compare sequel numbers by value: "xvi" and "16" are the same token. A lone
+    # "i" stays a word (usually the pronoun, as in "I Am Setsuna").
+    return " ".join(
+        str(value) if token != "i" and (value := _roman_value(token)) else token
+        for token in tokens
+    )
 
 
 def _candidate_score(game: str, candidate: str) -> float:
@@ -115,11 +209,11 @@ def _candidate_is_safe_match(game: str, candidate: str) -> bool:
     wanted_all = wanted.split()
     actual_all = actual.split()
     def sequel_markers(tokens: list[str]) -> set[int]:
+        # Roman numerals were already normalised to digits, except a lone "i".
         return {
-            int(token) if token.isdigit() else _ROMAN_SEQUELS[token]
+            int(token) if token.isdigit() else 1
             for token in tokens
-            if _SEQUEL_TOKEN.fullmatch(token)
-            and (token.isdigit() or token in _ROMAN_SEQUELS)
+            if token.isdigit() or token == "i"
         }
 
     wanted_sequels = sequel_markers(wanted_all)

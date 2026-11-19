@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import threading
@@ -99,7 +100,10 @@ def _trophy_page_is_complete(
 
 def _page_is_ready(html: str, requested_url: str | None = None) -> bool:
     """True once Cloudflare has yielded requested content or a terminal error."""
-    soup = BeautifulSoup(html, "html.parser")
+    return _soup_is_ready(BeautifulSoup(html, "html.parser"), requested_url)
+
+
+def _soup_is_ready(soup: BeautifulSoup, requested_url: str | None = None) -> bool:
     title = soup.title.get_text(" ", strip=True).lower() if soup.title else ""
     if "just a moment" in title:
         return False
@@ -135,6 +139,35 @@ def _navigation_matches(current: str, requested: str) -> bool:
         return False
     actual_query = parse_qs(actual.query)
     return all(actual_query.get(key) == value for key, value in parse_qs(wanted.query).items())
+
+
+# How long a Cloudflare "Just a moment..." page may persist before the user is
+# asked to complete the check manually.
+CHALLENGE_GRACE_SECONDS = 20.0
+_CHALLENGE_TITLE_MARKERS = ("just a moment", "attention required", "請稍候", "请稍候")
+_CHALLENGE_MESSAGE = "PSNProfiles 需要手動完成網站驗證，請在瀏覽器完成後重試。"
+
+
+async def _page_state(tab) -> dict | None:
+    """Return the tab's current URL and readyState, or None if unreadable.
+
+    Current Chrome ignores `returnByValue` when nodriver also requests deep
+    serialization, so an object result comes back as a bare RemoteObject.
+    Primitive results always survive, so the page serialises its own state.
+    """
+    raw = await tab.evaluate(
+        "JSON.stringify({url: window.location.href, readyState: document.readyState})",
+        return_by_value=True,
+    )
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str):
+        return None
+    try:
+        state = json.loads(raw)
+    except ValueError:
+        return None
+    return state if isinstance(state, dict) else None
 
 
 class NodriverSession:
@@ -190,22 +223,30 @@ class NodriverSession:
         deadline = time.monotonic() + timeout
         last_html = ""
         last_signature = None
+        challenge_since: float | None = None
 
         while time.monotonic() < deadline:
-            state = await tab.evaluate(
-                "({url: window.location.href, readyState: document.readyState})",
-                return_by_value=True,
-            )
-            if not isinstance(state, dict) or not _navigation_matches(str(state.get("url", "")), url) or state.get("readyState") != "complete":
+            state = await _page_state(tab)
+            if state is None or not _navigation_matches(str(state.get("url", "")), url) or state.get("readyState") != "complete":
                 last_signature = None
                 await tab.sleep(0.5)
                 continue
             last_html = await tab.get_content()
             soup = BeautifulSoup(last_html, "html.parser")
             title_text = soup.title.get_text(" ", strip=True).casefold() if soup.title else ""
-            if any(marker in title_text for marker in ("just a moment", "attention required", "請稍候", "请稍候")):
-                raise PSNProfilesChallengeError("PSNProfiles 需要手動完成網站驗證，請在瀏覽器完成後重試。")
-            page_ready = _page_is_ready(last_html, url)
+            if any(marker in title_text for marker in _CHALLENGE_TITLE_MARKERS):
+                # nodriver usually clears Cloudflare's check by itself within a
+                # few seconds; only a challenge that persists needs the user.
+                now = time.monotonic()
+                if challenge_since is None:
+                    challenge_since = now
+                elif now - challenge_since >= CHALLENGE_GRACE_SECONDS:
+                    raise PSNProfilesChallengeError(_CHALLENGE_MESSAGE)
+                last_signature = None
+                await tab.sleep(1)
+                continue
+            challenge_since = None
+            page_ready = _soup_is_ready(soup, url)
             if page_ready:
                 # Compare meaningful page data rather than ads/animation markup.
                 signature = (title_text, tuple(table.get_text(" ", strip=True)
@@ -219,20 +260,16 @@ class NodriverSession:
             # Trophy lists can lazy-render additional rows as the page scrolls.
             # Keep advancing by one viewport until the declared count and URL
             # positions are complete, then the next poll returns the full DOM.
-            partial_soup = BeautifulSoup(last_html, "html.parser")
-            partial_title = (
-                partial_soup.title.get_text(" ", strip=True).lower()
-                if partial_soup.title
-                else ""
-            )
             if (
-                "trophies" in partial_title
-                and partial_soup.select_one("table.zebra")
+                "trophies" in title_text
+                and soup.select_one("table.zebra")
                 and not page_ready
             ):
                 await tab.scroll_down(100)
             await tab.sleep(1)
 
+        if challenge_since is not None:
+            raise PSNProfilesChallengeError(_CHALLENGE_MESSAGE)
         title = BeautifulSoup(last_html, "html.parser").title
         title_text = title.get_text(" ", strip=True) if title else "unknown page"
         raise PSNProfilesFetchError(

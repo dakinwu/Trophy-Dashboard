@@ -380,12 +380,18 @@ export function OverviewHero({ data, refreshing, refreshError, onRefresh }: Over
                   <span
                     className={[
                       'rounded-full border px-2.5 py-1 text-[10px] font-bold',
-                      viewModel.cacheStatus === 'cached'
-                        ? 'border-accent/30 bg-accent/10 text-accent'
-                        : 'border-platinum/30 bg-platinum/10 text-platinum',
+                      viewModel.backgroundRefreshing
+                        ? 'border-border bg-bg/55 text-muted'
+                        : viewModel.cacheStatus === 'cached'
+                          ? 'border-accent/30 bg-accent/10 text-accent'
+                          : 'border-platinum/30 bg-platinum/10 text-platinum',
                     ].join(' ')}
                   >
-                    {viewModel.cacheStatus === 'cached' ? '快取 · 24 小時' : '即時結果'}
+                    {viewModel.backgroundRefreshing
+                      ? '舊快取 · 背景更新中'
+                      : viewModel.cacheStatus === 'cached'
+                        ? '快取 · 24 小時'
+                        : '即時結果'}
                   </span>
                 )}
               </div>
@@ -448,7 +454,7 @@ export function OverviewHero({ data, refreshing, refreshError, onRefresh }: Over
               查看遊戲
             </Button>
             <Button type="button" onPress={() => navigate(`${profileBase}/advisor`)} variant="outline" className="min-h-11">
-              獎盃顧問
+              獎盃建議
             </Button>
             <Button type="button" onPress={() => navigate(`${profileBase}/timeline`)} variant="outline" className="min-h-11">
               時間軸
@@ -467,6 +473,10 @@ export function OverviewHero({ data, refreshing, refreshError, onRefresh }: Over
             ) : refreshError ? (
               <p role="alert" className="text-xs text-bronze">
                 重新整理失敗，目前仍顯示原有的玩家資料。
+              </p>
+            ) : viewModel.backgroundRefreshing ? (
+              <p className="text-xs text-muted">
+                快取已過期，正在背景向 PSN 重新同步（遊戲多時可能需要十幾分鐘），完成後會自動換上新資料。
               </p>
             ) : viewModel.cacheStatus === 'cached' ? (
               <p className="text-xs text-muted">目前資料來自後端的 24 小時玩家快取。</p>

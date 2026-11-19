@@ -77,6 +77,11 @@ source repository does not make this a safe public web service. Read
   dashboard's empty profile-search page in the browser. Enter your own PSN ID;
   no personal account is hardcoded. Close those two windows to stop the app.
   Missing frontend packages are synchronized before startup.
+- **Optional `.exe` launcher with an icon:** run
+  `powershell -ExecutionPolicy Bypass -File launcher\build.ps1` once. It compiles
+  `TrophyHunter.exe` into the project folder using the C# compiler that ships with
+  Windows (nothing to install). Double-clicking it runs `run.cmd`; keep it in the
+  project folder (pin a shortcut to it to the taskbar or desktop if you like).
 - From a terminal instead: `run.cmd`, or `./run.ps1` (PowerShell). The PowerShell
   launcher starts both services; open the frontend URL yourself.
 - **Manual:**

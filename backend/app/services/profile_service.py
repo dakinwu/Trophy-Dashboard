@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import threading
+import time
 import unicodedata
 from datetime import datetime, timezone
 from typing import Callable
@@ -371,15 +372,108 @@ def _token_owner_online_id() -> str | None:
     return psn_online_id()
 
 
+# --- Stale-while-revalidate ---------------------------------------------------
+# Rebuilding an expired profile from Sony is rate-limited (~1 request / 3 s), so
+# a large library can take many minutes. Requests that opt in get the expired
+# cache immediately while one background thread per user rebuilds it.
+REFRESH_RETRY_COOLDOWN = 10 * 60  # seconds before retrying a failed refresh
+_REFRESH_LOCK = threading.Lock()
+_REFRESHING: set[str] = set()
+_REFRESH_FAILED_AT: dict[str, float] = {}
+
+
+def _run_in_background(job: Callable[[], None]) -> None:
+    threading.Thread(target=job, name="profile-refresh", daemon=True).start()
+
+
+def _reset_background_refresh_state() -> None:
+    with _REFRESH_LOCK:
+        _REFRESHING.clear()
+        _REFRESH_FAILED_AT.clear()
+
+
+def is_background_refreshing(username: str) -> bool:
+    """True while a background rebuild of `username`'s profile is running."""
+    with _REFRESH_LOCK:
+        return username.casefold() in _REFRESHING
+
+
+def _fetch_live_profile(username: str, cache: FileCache) -> ProfileData | None:
+    return get_profile(username, force=True, cache=cache)
+
+
+def _start_background_refresh(username: str, cache: FileCache) -> bool:
+    """Ensure one refresh is running for `username`; False while cooling down."""
+    name = username.casefold()
+    with _REFRESH_LOCK:
+        if name in _REFRESHING:
+            return True
+        failed_at = _REFRESH_FAILED_AT.get(name)
+        if failed_at is not None and time.monotonic() - failed_at < REFRESH_RETRY_COOLDOWN:
+            return False
+        _REFRESHING.add(name)
+
+    def job() -> None:
+        ok = False
+        try:
+            logger.info("Background profile refresh start username=%s", username)
+            ok = _fetch_live_profile(username, cache) is not None
+        except Exception:
+            logger.exception("Background profile refresh failed username=%s", username)
+        finally:
+            with _REFRESH_LOCK:
+                _REFRESHING.discard(name)
+                if ok:
+                    _REFRESH_FAILED_AT.pop(name, None)
+                else:
+                    _REFRESH_FAILED_AT[name] = time.monotonic()
+            logger.info("Background profile refresh end username=%s ok=%s", username, ok)
+
+    _run_in_background(job)
+    return True
+
+
+def _usable_cached_profile(
+    cached: dict | None,
+    cache: FileCache,
+    key: str,
+) -> ProfileData | None:
+    if cached is None:
+        return None
+    cached_profile = ProfileData.model_validate(cached)
+    # A positive trophy total with no rows is a failed log scrape, rather than
+    # a valid empty account.
+    if (
+        cached_profile.profile_summary.total_trophies.total > 0
+        and not cached_profile.trophy_log
+        and not cached_profile.summary_only
+    ):
+        return None
+    return _with_cached_psnprofiles_rarities(
+        _with_cached_official_icons(
+            _mark_cached_profile(cached_profile, cache, key),
+            cache,
+        ),
+        cache,
+    )
+
+
 def get_profile(
     username: str,
     *,
     force: bool = False,
+    background_refresh: bool = False,
     on_progress: Callable[[int, int], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
     session=None,
     cache: FileCache | None = None,
 ) -> ProfileData | None:
+    """Return a player's profile, from cache when fresh.
+
+    With `background_refresh`, an expired cache entry is returned at once
+    (`refreshing=True`) while a background thread rebuilds it; only a missing
+    cache entry blocks on the upstream fetch.
+    """
     cache = cache or FileCache(settings.cache_dir)
     # Keep the profile cache stable; DLC metadata is fetched with the complete
     # per-game detail endpoint below and does not require rebuilding the whole
@@ -387,23 +481,14 @@ def get_profile(
     key = f"profile_v3/{username.lower()}"
 
     if not force:
-        cached = cache.load(key, PROFILE_TTL)
-        if cached is not None:
-            cached_profile = ProfileData.model_validate(cached)
-            # A positive trophy total with no rows is a failed log scrape,
-            # rather than a valid empty account.
-            if not (
-                cached_profile.profile_summary.total_trophies.total > 0
-                and not cached_profile.trophy_log
-                and not cached_profile.summary_only
-            ):
-                return _with_cached_psnprofiles_rarities(
-                    _with_cached_official_icons(
-                        _mark_cached_profile(cached_profile, cache, key),
-                        cache,
-                    ),
-                    cache,
-                )
+        fresh = _usable_cached_profile(cache.load(key, PROFILE_TTL), cache, key)
+        if fresh is not None:
+            return fresh
+        if background_refresh:
+            stale = _usable_cached_profile(cache.load(key, float("inf")), cache, key)
+            if stale is not None:
+                stale.refreshing = _start_background_refresh(username, cache)
+                return stale
 
     # Prefer Sony's API for the token owner and other public accounts. This
     # avoids the PSNProfiles trophy-log page, which can stall behind ads or
@@ -494,7 +579,7 @@ def get_game_detail(
                     cache.save(detail_key, detail.model_dump())
                     return detail
 
-    profile = get_profile(username, cache=cache)
+    profile = get_profile(username, background_refresh=True, cache=cache)
     if profile is None:
         return None
     trophies = [
