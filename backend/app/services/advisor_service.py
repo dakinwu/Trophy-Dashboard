@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import re
+import time
 from contextlib import nullcontext
 from datetime import datetime, timezone
 
@@ -565,6 +566,8 @@ def get_advisor_library(
         )
 
     key = _cache_key(online_id, npsso)
+    started = time.monotonic()
+    logger.info("Advisor library live read start username=%s force=%s", online_id, force)
 
     try:
         raw_games = _fetch_library_pages(me.authenticator)
@@ -601,6 +604,10 @@ def get_advisor_library(
         title_resolver="gemini" if settings.gemini_api_key else "source_title",
     )
     cache.save(key, data.model_dump())
+    logger.info(
+        "Advisor library live read done username=%s games=%d entitlements=%d seconds=%.1f",
+        online_id, len(games), len(raw_games), time.monotonic() - started,
+    )
     return data
 
 

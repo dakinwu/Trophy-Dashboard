@@ -775,3 +775,38 @@ def test_bundle_cloudflare_challenge_still_stops_the_batch(monkeypatch, tmp_path
     assert bundle.error is not None
     assert other.error == bundle.error
     assert calls == ["BioShock"]
+
+
+def test_build_games_does_not_give_one_sequel_another_sequels_progress():
+    # "SILENT HILL 2" is a different game from "SILENT HILL f"; it must not
+    # borrow f's playtime and trophies just because the names look alike.
+    silent_hill_f = SimpleNamespace(
+        title_name="SILENT HILL f",
+        title_platform=[SimpleNamespace(value="PS5")],
+        progress=32,
+        earned_trophies=SimpleNamespace(platinum=0, gold=1, silver=5, bronze=16),
+        defined_trophies=SimpleNamespace(platinum=1, gold=5, silver=10, bronze=30),
+    )
+
+    games, *_ = advisor_service._build_games(
+        [
+            _raw_game("PPSA10644_00", "SILENT HILL 2", "PS5"),
+            _raw_game("PPSA21159_00", "SILENT HILL f", "PS5"),
+        ],
+        [
+            {
+                "title_id": "PPSA21159_00",
+                "name": "SILENT HILL f",
+                "platform": "PS5",
+                "seconds": 89_113,
+            }
+        ],
+        [silent_hill_f],
+    )
+
+    by_name = {game.name: game for game in games}
+    assert by_name["SILENT HILL f"].status == "in_progress"
+    assert by_name["SILENT HILL f"].playtime_seconds == 89_113
+    assert by_name["SILENT HILL 2"].status == "unplayed"
+    assert by_name["SILENT HILL 2"].playtime_seconds is None
+    assert by_name["SILENT HILL 2"].trophy_title is None

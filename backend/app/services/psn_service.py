@@ -22,6 +22,7 @@ from typing import Callable, TypedDict
 
 from app.config import settings
 from app.services.trophy_images import is_official_trophy_image
+from app.services.psnprofiles_guide_service import roman_numeral_value
 from app.models import (
     GameTrophyDetail,
     PlatinumGame,
@@ -115,7 +116,6 @@ def build_platinum_gallery_from_psn(username: str, cache) -> PlatinumGallery | N
 _GRADE_NAMES = {"PLATINUM": "Platinum", "GOLD": "Gold", "SILVER": "Silver", "BRONZE": "Bronze"}
 _GRADE_KEYS = ("platinum", "gold", "silver", "bronze")
 _TITLE_STATS_TTL = 6 * 3600
-_ROMAN_NUMERAL = re.compile(r"^(?:x{0,3})(?:ix|iv|v?i{0,3})$")
 
 
 class _PlaytimeEntry(TypedDict):
@@ -198,8 +198,9 @@ def _format_playtime(total_seconds: float) -> str:
 
 
 def _normalise_game_name(name: str) -> str:
-    name = unicodedata.normalize("NFKC", name).casefold()
+    # Strip trademark glyphs first: NFKC would turn "™" into the letters "TM".
     name = re.sub(r"[™®©]", "", name)
+    name = unicodedata.normalize("NFKC", name).casefold()
     name = re.sub(
         r"\((?:ps[345]|playstation\s*[345]|vita|cross[- ]?buy)\)",
         " ",
@@ -210,25 +211,36 @@ def _normalise_game_name(name: str) -> str:
     return " ".join(name.split())
 
 
-def _number_tokens(name: str) -> set[str]:
-    return {
-        token
-        for token in _normalise_game_name(name).split()
-        if token.isdigit() or _ROMAN_NUMERAL.fullmatch(token)
-    }
+def _comparable_game_name(name: str) -> str:
+    """Normalised name with Roman sequel numerals as digits (XVI -> 16).
+
+    A lone "i" is kept: it is far more often the pronoun ("I Am Setsuna").
+    """
+    tokens = []
+    for token in _normalise_game_name(name).split():
+        value = None if token == "i" else roman_numeral_value(token)
+        tokens.append(str(value) if value is not None else token)
+    return " ".join(tokens)
 
 
 def _game_name_score(left: str, right: str) -> float:
-    left_normalised = _normalise_game_name(left)
-    right_normalised = _normalise_game_name(right)
+    left_normalised = _comparable_game_name(left)
+    right_normalised = _comparable_game_name(right)
     if not left_normalised or not right_normalised:
         return 0.0
     if left_normalised == right_normalised:
         return 1.0
 
-    left_numbers = _number_tokens(left)
-    right_numbers = _number_tokens(right)
-    if left_numbers and right_numbers and left_numbers != right_numbers:
+    # Different sequel numbers, or a sequel number on one side only ("SILENT
+    # HILL 2" vs "SILENT HILL f", "The Division 2" vs "The Division"), are
+    # different games however similar the rest of the name is. A one-sided "1"
+    # is allowed: first entries often omit it ("The Walking Dead: Season 1"
+    # is the "The Walking Dead" trophy list).
+    left_numbers = {int(token) for token in left_normalised.split() if token.isdigit()}
+    right_numbers = {int(token) for token in right_normalised.split() if token.isdigit()}
+    if left_numbers != right_numbers and (
+        (left_numbers and right_numbers) or (left_numbers ^ right_numbers) - {1}
+    ):
         return 0.0
 
     if min(len(left_normalised), len(right_normalised)) >= 5 and (
