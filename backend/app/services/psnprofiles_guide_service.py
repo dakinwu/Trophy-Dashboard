@@ -113,11 +113,12 @@ def numeral_search_variants(title: str) -> list[str]:
 
 
 # Store/marketing edition suffixes PSNProfiles often omits from list names
-# (the PS4 "Mafia II: Definitive Edition" list is just "Mafia II").
+# (the PS4 "Mafia II: Definitive Edition" list is just "Mafia II"). A bare
+# "Enhanced" covers store translations such as 赤血沙漠：強化版.
 _EDITION_SUFFIX = re.compile(
     r"\s+(?:(?:definitive|complete|deluxe|digital\s+deluxe|ultimate|special|"
     r"enhanced|anniversary|legendary|gold|standard|game\s+of\s+the\s+year|goty)"
-    r"\s+edition|remastered|remaster|director'?s\s+cut|goty)$",
+    r"\s+edition|enhanced|remastered|remaster|director'?s\s+cut|goty)$",
     flags=re.IGNORECASE,
 )
 
