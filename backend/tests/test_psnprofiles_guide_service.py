@@ -153,6 +153,12 @@ def test_fallback_search_titles_try_numerals_then_shorter_titles():
         "Yakuza V Remastered",
         "Yakuza V",
     ]
+    # Store translations often drop "Edition" (赤血沙漠：強化版 -> Crimson Desert Enhanced).
+    assert fallback_search_titles(["Crimson Desert Enhanced"]) == [
+        "Crimson Desert Enhanced",
+        "Crimson Desert",
+    ]
     assert fallback_search_titles(["Journey"]) == ["Journey"]
     # Never strip a title down to nothing.
     assert fallback_search_titles(["Remastered"]) == ["Remastered"]
+    assert fallback_search_titles(["Enhanced"]) == ["Enhanced"]
